@@ -140,3 +140,8 @@ input,textarea,select {background:var(--input);border-color:var(--border)}
 .connection-pill[data-state="offline"]{color:#ff9d91;border-color:#a45454}
 .connection-pill[data-state="fallback"]{color:#edc17d;border-color:#957747}
 @media(max-width:600px){.queue-update-status{justify-content:flex-start;text-align:left}}
+
+/* Version tracking — last visible element on each page. */
+.site-footer { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; text-align:center; padding:28px 16px max(22px, env(safe-area-inset-bottom)); color:var(--muted); font-size:.82rem; }
+.site-version { display:block; margin-top:3px; color:var(--muted); font-size:.84rem; letter-spacing:.02em; }
+.site-version strong { color:var(--text); font-weight:750; font-variant-numeric:tabular-nums; }
