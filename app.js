@@ -34,10 +34,75 @@ function checkFollowAlert(waiting) {
   $('teamAlertTitle').textContent = `${team.name} is next!`;
   $('teamAlertDescription').textContent = `${team.name} is first in line for the next available court.`;
   $('teamAlertBackdrop').classList.remove('hidden');
+  ringForNextTeam();
   if ('Notification' in window && Notification.permission === 'granted') {
     try { new Notification('Your volleyball team is next!', {body:`${team.name} is first in line.`}); } catch (_) {}
   }
 }
+
+// Ringtone is an opt-in page sound. A user tap unlocks Web Audio (required on mobile).
+const RINGTONE_KEY = 'vb-ringtone-enabled-v1';
+let ringtoneEnabled = false;
+let ringtoneContext = null;
+let activeRingNotes = [];
+let ringGeneration = 0;
+function stopRingtone() {
+  ringGeneration++;
+  for (const note of activeRingNotes) { try { note.stop(); } catch (_) {} }
+  activeRingNotes = [];
+}
+function updateRingtoneButton() {
+  const el = $('enableRingtone');
+  el.textContent = ringtoneEnabled ? '🔕 Mute ringtone' : '🔔 Enable ringtone';
+  el.setAttribute('aria-pressed',String(ringtoneEnabled));
+}
+async function startAudio() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) throw new Error('Ringtone audio is not supported by this browser.');
+  ringtoneContext ||= new AudioContextClass();
+  if (ringtoneContext.state === 'suspended') await ringtoneContext.resume();
+}
+function ringForNextTeam() {
+  if (!ringtoneEnabled || !ringtoneContext || ringtoneContext.state !== 'running') return;
+  stopRingtone();
+  const baseTime = ringtoneContext.currentTime + 0.03;
+  // Three short, pleasant two-tone alerts, <3 seconds total.
+  for (let i = 0; i < 3; i++) {
+    for (const [offset,freq] of [[0,660],[0.19,880]]) {
+      const osc = ringtoneContext.createOscillator();
+      const volume = ringtoneContext.createGain();
+      const start = baseTime + i * 0.73 + offset;
+      osc.type = 'sine'; osc.frequency.value = freq;
+      volume.gain.setValueAtTime(0.0001,start);
+      volume.gain.exponentialRampToValueAtTime(0.13,start+0.025);
+      volume.gain.exponentialRampToValueAtTime(0.0001,start+0.17);
+      osc.connect(volume); volume.connect(ringtoneContext.destination);
+      osc.start(start); osc.stop(start+0.18);
+      activeRingNotes.push(osc);
+    }
+  }
+}
+$('enableRingtone').addEventListener('click',async () => {
+  if (ringtoneEnabled) {
+    ringtoneEnabled = false;
+    stopRingtone();
+    try { localStorage.removeItem(RINGTONE_KEY); } catch (_) {}
+    $('followStatus').textContent = 'Ringtone muted. Team popups still work.';
+  } else {
+    try {
+      await startAudio();
+      ringtoneEnabled = true;
+      try { localStorage.setItem(RINGTONE_KEY,'1'); } catch (_) {}
+      $('followStatus').textContent = 'Ringtone enabled on this device. Keep this page open for alerts.';
+      ringForNextTeam(); // Short sound preview confirms phone audio is enabled.
+    } catch (error) {
+      $('followStatus').textContent = error.message;
+    }
+  }
+  updateRingtoneButton();
+});
+// Remember preference, but enable sound only after a fresh tap in each page session.
+updateRingtoneButton();
 
 const pendingDestinations = new Map();
 const sortTeams = values => [...values].sort((a,b) =>
@@ -303,7 +368,7 @@ function validName(value,max=60) {
 }
 
 $('followTeam').addEventListener('change', event => setFollow(event.target.value));
-$('dismissTeamAlert').addEventListener('click', () => $('teamAlertBackdrop').classList.add('hidden'));
+$('dismissTeamAlert').addEventListener('click', () => { stopRingtone(); $('teamAlertBackdrop').classList.add('hidden'); });
 $('enableNotifications').addEventListener('click', async () => {
   if (!('Notification' in window) || !('requestPermission' in Notification)) {
     $('followStatus').textContent = 'Browser notifications are unavailable here. In-page popups will still work while this site is open.';
