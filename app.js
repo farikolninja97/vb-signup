@@ -14,9 +14,31 @@ const configured = SUPABASE_URL.startsWith('https://') &&
   SUPABASE_ANON_KEY.length > 20 && !SUPABASE_ANON_KEY.includes('YOUR_');
 const db = configured ? createClient(SUPABASE_URL,SUPABASE_ANON_KEY) : null;
 
-let courts = [], teams = [], players = [], maxTeamSize = 6;
+let courts = [], teams = [], players = [], completed = [], maxTeamSize = 6;
 let admin = false, loading = false, saving = false, publicRotating = false;
 let latestRead = 0;
+const FOLLOW_KEY = 'vb-follow-team-v1';
+const notifiedTeams = new Set();
+let followedTeam = '';
+try { followedTeam = localStorage.getItem(FOLLOW_KEY) || ''; } catch (_) {}
+function setFollow(id) {
+  followedTeam = id;
+  notifiedTeams.clear();
+  try { if (id) localStorage.setItem(FOLLOW_KEY,id); else localStorage.removeItem(FOLLOW_KEY); } catch (_) {}
+  $('followStatus').textContent = id ? 'Watching this team. A popup will appear when it reaches the front.' : 'Choose a team to receive a first-in-line alert.';
+}
+function checkFollowAlert(waiting) {
+  const team = waiting[0];
+  if (!team || team.id !== followedTeam || notifiedTeams.has(team.id)) return;
+  notifiedTeams.add(team.id);
+  $('teamAlertTitle').textContent = `${team.name} is next!`;
+  $('teamAlertDescription').textContent = `${team.name} is first in line for the next available court.`;
+  $('teamAlertBackdrop').classList.remove('hidden');
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try { new Notification('Your volleyball team is next!', {body:`${team.name} is first in line.`}); } catch (_) {}
+  }
+}
+
 const pendingDestinations = new Map();
 const sortTeams = values => [...values].sort((a,b) =>
   Number(a.queue_order) - Number(b.queue_order) ||
@@ -62,7 +84,7 @@ function teamCard(team,isNext=false) {
 function renderPublic() {
   // Keep a selected team if it is still eligible while auto-refreshing.
   const chosen = $('teamChoice').value;
-  const available = sortTeams(teams.filter(team => team.status !== 'done'));
+  const available = sortTeams(teams.filter(team => team.status === 'waiting'));
   $('teamChoice').innerHTML = '<option value="">Choose a team</option>' + available.map(team => {
     const count = roster(team).length;
     const full = count >= maxTeamSize;
@@ -72,25 +94,33 @@ function renderPublic() {
     $('teamChoice').value = chosen;
   }
 
-  $('courtGrid').innerHTML = sortCourts(courts).map(court => {
-    const playing = sortTeams(teams.filter(team => team.court_id === court.id && team.status === 'playing'));
-    const waiting = sortTeams(teams.filter(team => team.court_id === court.id && team.status === 'waiting'));
-    const fullMatchup = waiting.length >= 2;
-    return `<article class="court-card">
-      <div class="court-top"><h3>🏐 ${safe(court.name)}</h3><span class="tag">${waiting.length} waiting</span></div>
-      <div class="subtitle">Playing now</div>
-      ${playing.length?playing.map(team => teamCard(team)).join(''):'<div class="empty">Open court</div>'}
-      <div class="subtitle">${fullMatchup?'Next matchup':'Waiting for teams'}</div>
-      ${waiting.length?waiting.slice(0,2).map(team => teamCard(team,fullMatchup)).join(''):'<div class="empty">No teams in queue</div>'}
-      ${waiting.length === 1?'<p class="hint">One more waiting team needed for a matchup.</p>':''}
-      ${waiting.length > 2?`<div class="subtitle">Later</div>${waiting.slice(2).map(team => teamCard(team)).join('')}`:''}
-      <div class="public-court-actions" role="group" aria-label="${safe(court.name)} rotation controls">
-        ${button('↶ Previous Teams','undo',court.id,'secondary',publicRotating)}
-        ${button('▶ Next Teams','advance',court.id,'primary',publicRotating||waiting.length<2)}
-      </div>
-    </article>`;
-  }).join('') || '<div class="empty">No courts configured yet. An admin can add one.</div>';
+  // A player can follow their team from a different device using the dropdown.
+  const selectedFollow = followedTeam;
+  const followable = sortTeams(teams.filter(team => team.status !== 'done'));
+  $('followTeam').innerHTML = '<option value="">Choose your team</option>' + followable.map(team =>
+    `<option value="${safe(team.id)}">${safe(team.name)} · ${roster(team).length} players</option>`).join('');
+  if (followable.some(team => team.id === selectedFollow)) $('followTeam').value = selectedFollow;
+  else if (selectedFollow) {
+    setFollow('');
+    $('followStatus').textContent = 'Your team has finished or was removed. Choose a new team to follow.';
+  }
+  // One shared FIFO line: every court takes the first waiting team, not a matchup.
+  const waiting = sortTeams(teams.filter(team => team.status === 'waiting'));
+  checkFollowAlert(waiting);
+  const courtNames = sortCourts(courts).map(court => safe(court.name)).join(' · ');
+  $('courtGrid').innerHTML = `<article class="court-card single-queue">
+    <div class="court-top"><h3>🏐 Team queue</h3><span class="tag">${waiting.length} waiting</span></div>
+    <div class="hint">Next available court: ${courtNames || 'No courts configured'}</div>
+    <div class="subtitle">FIRST IN LINE — NEXT TO PLAY</div>
+    ${waiting.length ? teamCard(waiting[0],true) : '<div class="empty">No teams waiting</div>'}
+    ${waiting.length>1 ? `<div class="subtitle">Coming up in order</div>${waiting.slice(1).map(team=>teamCard(team)).join('')}` : ''}
+    <div class="public-court-actions" role="group" aria-label="Queue controls">
+      ${button('↶ Previous Team','undo','queue','secondary',publicRotating)}
+      ${button('▶ Next Team','advance','queue','primary',publicRotating || !waiting.length || !courts.length)}
+    </div>
+  </article>`;
 
+  renderHistory();
   $('playerCount').textContent = `${players.length} players`;
   $('teamDirectory').innerHTML = sortTeams(teams.filter(team => team.status !== 'done')).map(team => {
     const members = roster(team);
@@ -100,6 +130,20 @@ function renderPublic() {
       <div class="players">${members.length?members.map(playerHtml).join(' · '):'No signups yet'}</div>
     </div>`;
   }).join('') || '<div class="empty">No teams yet. Ask an admin to add them.</div>';
+}
+
+function renderHistory() {
+  const host = $('historyList');
+  if (!host) return;
+  host.innerHTML = completed.length ? completed.map((item, index) => {
+    const members = Array.isArray(item.roster) ? item.roster : [];
+    const stamp = item.completed_at ? new Date(item.completed_at).toLocaleString() : '';
+    return `<article class="directory-card"><strong>${safe(item.team_name)}</strong>
+      <div class="hint">${safe(stamp)} · ${members.length} players</div>
+      <div class="players">${members.length ? members.map(playerHtml).join(' · ') : 'No players were signed up'}</div>
+    </article>`;
+  }).join('') : '<div class="empty">No teams have been sent to play yet.</div>';
+  $('historyCount').textContent = `${completed.length} previous teams`;
 }
 
 function renderAdmin() {
@@ -132,6 +176,7 @@ function renderAdmin() {
     select.value = target;
   });
 
+
   $('adminPlayers').innerHTML = [...players].sort((a,b) => a.name.localeCompare(b.name)).map(player => `
     <div class="admin-team"><strong>${safe(player.name)}</strong>
       <span class="hint">· ${safe(player.preferred_position || 'Flexible / Any')} · ${safe(teamById(player.team_id)?.name || 'Unknown team')}</span>
@@ -150,12 +195,14 @@ async function load(forceAdminRender=false) {
       db.from('courts').select('*').order('sort_order'),
       db.from('teams').select('*').order('queue_order'),
       db.from('players').select('*').order('created_at'),
-      db.from('queue_settings').select('max_team_size').eq('id',true).single()
+      db.from('queue_settings').select('max_team_size').eq('id',true).single(),
+      db.from('completed_teams').select('id,team_name,roster,completed_at').order('id',{ascending:false}).limit(200)
     ]);
     for (const result of results) if (result.error) throw result.error;
     if (readVersion !== latestRead) return;
     [courts,teams,players] = results.slice(0,3).map(result => result.data);
     maxTeamSize = results[3].data.max_team_size;
+    completed = results[4].data;
     renderPublic();
     if (forceAdminRender) document.activeElement?.blur?.();
     renderAdmin();
@@ -250,6 +297,19 @@ function validName(value,max=60) {
   return name;
 }
 
+$('followTeam').addEventListener('change', event => setFollow(event.target.value));
+$('dismissTeamAlert').addEventListener('click', () => $('teamAlertBackdrop').classList.add('hidden'));
+$('enableNotifications').addEventListener('click', async () => {
+  if (!('Notification' in window) || !('requestPermission' in Notification)) {
+    $('followStatus').textContent = 'Browser notifications are unavailable here. In-page popups will still work while this site is open.';
+    return;
+  }
+  try {
+    const permission = await Notification.requestPermission();
+    $('followStatus').textContent = permission === 'granted' ? 'Browser notifications enabled for this device.' : 'Browser notifications were not enabled. In-page popups still work.';
+  } catch (_) { $('followStatus').textContent = 'Browser notifications unavailable. In-page popups still work.'; }
+});
+
 $('signupForm').addEventListener('submit',async event => {
   event.preventDefault();
   if (!db) return;
@@ -270,7 +330,8 @@ $('signupForm').addEventListener('submit',async event => {
     });
     $('playerName').value = '';
     $('playerPosition').value = '';
-    message('signupStatus','You are signed up!');
+    setFollow(selectedTeam);
+    message('signupStatus','You are signed up! Alerts are now following your team on this device.');
     await load();
   } catch (error) {
     message('signupStatus',explain(error),true);
@@ -278,8 +339,7 @@ $('signupForm').addEventListener('submit',async event => {
     submit.disabled = false;
   }
 });
-// Court rotation is intentionally public. The SQL upgrade grants narrowly-scoped
-// EXECUTE permission for advance_court/undo_court without granting table writes.
+// Next atomically archives the outgoing team and its roster; Previous restores the latest archive and roster.
 $('courtGrid').addEventListener('click', async event => {
   const target = event.target.closest('button[data-action]');
   if (!target || !db || publicRotating) return;
@@ -289,8 +349,8 @@ $('courtGrid').addEventListener('click', async event => {
   $('courtGrid').querySelectorAll('button[data-action]').forEach(item => {item.disabled=true;});
   message('queueStatus',action === 'advance' ? 'Advancing teams…' : 'Restoring previous teams…');
   try {
-    await rpc(action === 'advance' ? 'advance_court' : 'undo_court',{target_court:id});
-    message('queueStatus',action === 'advance' ? 'Next teams are now playing.' : 'Previous matchup restored.');
+    await rpc(action === 'advance' ? 'advance_global_queue' : 'undo_global_queue',{});
+    message('queueStatus',action === 'advance' ? 'Team archived with its player list. Next team is first in line.' : 'Previous team and all its players restored to the front.');
     await load();
   } catch (error) {
     message('queueStatus',explain(error),true);
@@ -299,6 +359,18 @@ $('courtGrid').addEventListener('click', async event => {
     renderPublic();
   }
 });
+
+function showRosterTab(tab) {
+  const showHistory = tab === 'history';
+  $('historyPanel').classList.toggle('hidden', !showHistory);
+  $('activeTeamsPanel').classList.toggle('hidden', showHistory);
+  $('queueTab').className = showHistory ? 'secondary' : 'primary';
+  $('historyTab').className = showHistory ? 'primary' : 'secondary';
+  $('queueTab').setAttribute('aria-selected', String(!showHistory));
+  $('historyTab').setAttribute('aria-selected', String(showHistory));
+}
+$('queueTab').addEventListener('click', () => showRosterTab('queue'));
+$('historyTab').addEventListener('click', () => showRosterTab('history'));
 
 $('adminToggle').addEventListener('click',() => {
   $('adminSection').classList.toggle('hidden');
@@ -347,14 +419,10 @@ $('addCourtBtn').addEventListener('click',async() => {
   if (await runAdmin(() => checkedMutation(db.from('courts')
     .insert({name,sort_order:nextSort})),'Court added')) $('newCourtName').value='';
 });
-$('resetQueueBtn').addEventListener('click',async() => {
-  if (!confirm('Return all teams to waiting and clear Undo history? Player signups will stay.')) return;
-  await runAdmin(() => rpc('reset_dropin_session',{clear_players:false}),'Queues reset; player signups kept');
-});
 $('resetDefaultsBtn').addEventListener('click',async() => {
   if (!admin || saving) return;
   const confirmText = prompt(
-    'RESET EVERYTHING? This permanently deletes all player signups, teams, courts and Undo history.\n' +
+    'REMOVE EVERYONE? This permanently deletes ALL player signups on EVERY team, as well as teams, courts and Undo history.\n' +
     'It then creates one Intermediate court and 12 empty teams (maximum 6 players each).\n' +
     'Your admin login is kept.\n\nType RESET to continue:'
   );
@@ -363,8 +431,8 @@ $('resetDefaultsBtn').addEventListener('click',async() => {
     return;
   }
   const success = await runAdmin(() => rpc('reset_to_intermediate',{}),
-    'Session reset: Intermediate court, 12 empty teams, 6-player limit.');
-  if (success) pendingDestinations.clear();
+    'Everyone removed. Ready for a new session: Intermediate court, 12 empty teams, 6-player limit.');
+  if (success) { pendingDestinations.clear(); setFollow(''); }
 });
 
 $('adminSection').addEventListener('change', event => {
@@ -417,10 +485,10 @@ $('adminSection').addEventListener('click',async event => {
     return;
   }
   if ((action==='up' || action==='down') && team) {
-    const list = sortTeams(teams.filter(item => item.court_id===team.court_id && item.status==='waiting'));
+    const list = sortTeams(teams.filter(item => item.status==='waiting'));
     const index = list.findIndex(item => item.id === id);
     const other = list[index + (action==='up'?-1:1)];
-    if (!other) {message('adminStatus','This team cannot move further in the waiting queue.',true);return;}
+    if (!other) {message('adminStatus','This team cannot move further in the queue.',true);return;}
     await runAdmin(() => rpc('swap_team_order',{first_id:id,second_id:other.id}),'Waiting order changed');
     return;
   }
