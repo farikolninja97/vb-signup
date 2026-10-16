@@ -15,7 +15,7 @@ const configured = SUPABASE_URL.startsWith('https://') &&
 const db = configured ? createClient(SUPABASE_URL,SUPABASE_ANON_KEY) : null;
 
 let courts = [], teams = [], players = [], maxTeamSize = 6;
-let admin = false, loading = false, saving = false;
+let admin = false, loading = false, saving = false, publicRotating = false;
 let latestRead = 0;
 const pendingDestinations = new Map();
 const sortTeams = values => [...values].sort((a,b) =>
@@ -83,6 +83,10 @@ function renderPublic() {
       ${waiting.length?waiting.slice(0,2).map(team => teamCard(team,fullMatchup)).join(''):'<div class="empty">No teams in queue</div>'}
       ${waiting.length === 1?'<p class="hint">One more waiting team needed for a matchup.</p>':''}
       ${waiting.length > 2?`<div class="subtitle">Later</div>${waiting.slice(2).map(team => teamCard(team)).join('')}`:''}
+      <div class="public-court-actions" role="group" aria-label="${safe(court.name)} rotation controls">
+        ${button('↶ Previous Teams','undo',court.id,'secondary',publicRotating)}
+        ${button('▶ Next Teams','advance',court.id,'primary',publicRotating||waiting.length<2)}
+      </div>
     </article>`;
   }).join('') || '<div class="empty">No courts configured yet. An admin can add one.</div>';
 
@@ -107,15 +111,6 @@ function renderAdmin() {
   $('maxTeamSize').value = String(maxTeamSize);
   const choices = '<option value="">Unassigned</option>' + sortCourts(courts)
     .map(court => `<option value="${safe(court.id)}">${safe(court.name)}</option>`).join('');
-
-  $('courtControls').innerHTML = sortCourts(courts).map(court => {
-    const waiting = teams.filter(team => team.court_id === court.id && team.status === 'waiting').length;
-    return `<div class="admin-team">
-      <div class="admin-heading"><strong>${safe(court.name)}</strong><span class="hint">${waiting} waiting teams</span></div>
-      <div class="actions">${button('▶ Next matchup','advance',court.id,'primary',waiting<2)}
-        ${button('↶ Undo last advance','undo',court.id)}</div>
-    </div>`;
-  }).join('') || '<div class="empty">Add your first court below.</div>';
 
   $('courtAdminList').innerHTML = sortCourts(courts).map(court =>
     `<div class="court-admin-row"><strong>${safe(court.name)}</strong>
@@ -250,6 +245,28 @@ $('signupForm').addEventListener('submit',async event => {
     submit.disabled = false;
   }
 });
+// Court rotation is intentionally public. The SQL upgrade grants narrowly-scoped
+// EXECUTE permission for advance_court/undo_court without granting table writes.
+$('courtGrid').addEventListener('click', async event => {
+  const target = event.target.closest('button[data-action]');
+  if (!target || !db || publicRotating) return;
+  const {action,id} = target.dataset;
+  if (action !== 'advance' && action !== 'undo') return;
+  publicRotating = true;
+  $('courtGrid').querySelectorAll('button[data-action]').forEach(item => {item.disabled=true;});
+  message('queueStatus',action === 'advance' ? 'Advancing teams…' : 'Restoring previous teams…');
+  try {
+    await rpc(action === 'advance' ? 'advance_court' : 'undo_court',{target_court:id});
+    message('queueStatus',action === 'advance' ? 'Next teams are now playing.' : 'Previous matchup restored.');
+    await load();
+  } catch (error) {
+    message('queueStatus',explain(error),true);
+  } finally {
+    publicRotating = false;
+    renderPublic();
+  }
+});
+
 $('adminToggle').addEventListener('click',() => {
   $('adminSection').classList.toggle('hidden');
   if (!$('adminSection').classList.contains('hidden'))
@@ -301,10 +318,20 @@ $('resetQueueBtn').addEventListener('click',async() => {
   if (!confirm('Return all teams to waiting and clear Undo history? Player signups will stay.')) return;
   await runAdmin(() => rpc('reset_dropin_session',{clear_players:false}),'Queues reset; player signups kept');
 });
-$('clearSignupsBtn').addEventListener('click',async() => {
-  if (!confirm('Start a new drop-in session? This permanently clears ALL player signups and resets team statuses.')) return;
-  if (!confirm('Confirm: delete every player signup? This cannot be undone.')) return;
-  await runAdmin(() => rpc('reset_dropin_session',{clear_players:true}),'All player signups cleared for the next session');
+$('resetDefaultsBtn').addEventListener('click',async() => {
+  if (!admin || saving) return;
+  const confirmText = prompt(
+    'RESET EVERYTHING? This permanently deletes all player signups, teams, courts and Undo history.\n' +
+    'It then creates one Intermediate court and 12 empty teams (maximum 6 players each).\n' +
+    'Your admin login is kept.\n\nType RESET to continue:'
+  );
+  if (confirmText !== 'RESET') {
+    if (confirmText !== null) message('adminStatus','Reset cancelled. Type RESET in capital letters to confirm.');
+    return;
+  }
+  const success = await runAdmin(() => rpc('reset_to_intermediate',{}),
+    'Session reset: Intermediate court, 12 empty teams, 6-player limit.');
+  if (success) pendingDestinations.clear();
 });
 
 $('adminSection').addEventListener('change', event => {
@@ -317,11 +344,6 @@ $('adminSection').addEventListener('click',async event => {
   const {action,id} = target.dataset;
   const team = teamById(id), player = players.find(item => item.id===id), court = courtById(id);
 
-  if (action==='advance' || action==='undo') {
-    await runAdmin(() => rpc(action==='advance'?'advance_court':'undo_court',{target_court:id}),
-      action==='advance'?'Court advanced':'Last advance undone');
-    return;
-  }
   if (action==='renameCourt' && court) {
     const name = prompt('New court name',court.name);
     if (name===null) return;
