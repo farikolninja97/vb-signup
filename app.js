@@ -51,6 +51,8 @@ function applyTheme(name) {
 }
 applyTheme('default');
 let admin = false, loading = false, saving = false, publicRotating = false;
+// Queue display preference lasts through live refreshes on the current page.
+let showAllFollowingTeams = false;
 let latestRead = 0;
 // Supabase Database Broadcast: the database emits a tiny public invalidation event.
 // No names, rosters, or admin information are sent in these messages.
@@ -305,6 +307,9 @@ function renderPublic() {
   const waiting = sortTeams(teams.filter(team => team.status === 'waiting'));
   checkFollowAlert(waiting);
   const courtNames = sortCourts(courts).map(court => safe(court.name)).join(' · ');
+  const followingTeams = waiting.slice(1);
+  const shownFollowingTeams = showAllFollowingTeams ? followingTeams : followingTeams.slice(0,3);
+  const hiddenFollowingCount = Math.max(0, followingTeams.length - 3);
   $('courtGrid').innerHTML = `<article class="court-card single-queue">
     <div class="court-top"><h3>🏐 Live team lineup</h3><span class="tag">${waiting.length} teams in line</span></div>
     <div class="hint">Next available court: ${courtNames || 'No courts configured'}</div>
@@ -314,7 +319,9 @@ function renderPublic() {
     </div>
     <div class="subtitle">UP NEXT</div>
     ${waiting.length ? teamCard(waiting[0],true,1) : '<div class="empty">No teams waiting</div>'}
-    ${waiting.length>1 ? `<div class="subtitle">Teams following in queue</div>${waiting.slice(1).map((team,index)=>teamCard(team,false,index+2)).join('')}` : ''}
+    ${followingTeams.length ? `<div class="following-heading"><div class="subtitle">Teams following in queue</div><span class="hint">${followingTeams.length} waiting behind first</span></div>
+      <div id="followingTeamsList">${shownFollowingTeams.map((team,index)=>teamCard(team,false,index+2)).join('')}</div>
+      ${hiddenFollowingCount ? `<button type="button" class="secondary queue-expand-button" data-queue-toggle="true" aria-controls="followingTeamsList" aria-expanded="${showAllFollowingTeams}">${showAllFollowingTeams ? 'Show Less ↑' : `Show More ↓ (${hiddenFollowingCount} more ${hiddenFollowingCount===1?'team':'teams'})`}</button>` : ''}` : ''}
   </article>`;
 
   renderHistory();
@@ -562,6 +569,16 @@ $('signupForm').addEventListener('submit',async event => {
     submit.disabled = false;
   }
 });
+// Expand/collapse is display-only; it never contacts Supabase or advances the queue.
+$('courtGrid').addEventListener('click', event => {
+  const toggle = event.target.closest('button[data-queue-toggle]');
+  if (!toggle) return;
+  showAllFollowingTeams = !showAllFollowingTeams;
+  renderPublic();
+  const replacement = $('courtGrid').querySelector('button[data-queue-toggle]');
+  replacement?.focus({preventScroll:true});
+});
+
 // Next atomically archives the outgoing team and its roster; Previous restores the latest archive and roster.
 $('courtGrid').addEventListener('click', async event => {
   const target = event.target.closest('button[data-action]');
