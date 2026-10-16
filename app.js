@@ -30,6 +30,16 @@ let admin = false, loading = false, saving = false, publicRotating = false;
 let latestRead = 0;
 const FOLLOW_KEY = 'vb-follow-team-v1';
 const notifiedTeams = new Set();
+const NOTIFICATIONS_KEY = 'vb-notifications-enabled-v1';
+// Previously popups were enabled automatically; retain that behavior for existing visitors.
+let notificationsEnabled = true;
+try { notificationsEnabled = localStorage.getItem(NOTIFICATIONS_KEY) !== '0'; } catch (_) {}
+function updateNotificationButtons() {
+  $('enableNotifications').classList.toggle('hidden', notificationsEnabled);
+  $('disableNotifications').classList.toggle('hidden', !notificationsEnabled);
+  $('enableNotifications').setAttribute('aria-pressed', String(notificationsEnabled));
+  $('disableNotifications').setAttribute('aria-pressed', String(!notificationsEnabled));
+}
 let followedTeam = '';
 try { followedTeam = localStorage.getItem(FOLLOW_KEY) || ''; } catch (_) {}
 function setFollow(id) {
@@ -44,9 +54,9 @@ function checkFollowAlert(waiting) {
   notifiedTeams.add(team.id);
   $('teamAlertTitle').textContent = `${team.name} is next!`;
   $('teamAlertDescription').textContent = `${team.name} is first in line for the next available court.`;
-  $('teamAlertBackdrop').classList.remove('hidden');
+  if (notificationsEnabled) $('teamAlertBackdrop').classList.remove('hidden');
   ringForNextTeam();
-  if ('Notification' in window && Notification.permission === 'granted') {
+  if (notificationsEnabled && 'Notification' in window && Notification.permission === 'granted') {
     try { new Notification('Your volleyball team is next!', {body:`${team.name} is first in line.`}); } catch (_) {}
   }
 }
@@ -64,8 +74,10 @@ function stopRingtone() {
 }
 function updateRingtoneButton() {
   const el = $('enableRingtone');
-  el.textContent = ringtoneEnabled ? '🔕 Mute ringtone' : '🔔 Enable ringtone';
+  el.classList.toggle('hidden', ringtoneEnabled);
+  $('disableRingtone').classList.toggle('hidden', !ringtoneEnabled);
   el.setAttribute('aria-pressed',String(ringtoneEnabled));
+  $('disableRingtone').setAttribute('aria-pressed',String(!ringtoneEnabled));
 }
 async function startAudio() {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -94,22 +106,20 @@ function ringForNextTeam() {
   }
 }
 $('enableRingtone').addEventListener('click',async () => {
-  if (ringtoneEnabled) {
-    ringtoneEnabled = false;
-    stopRingtone();
-    try { localStorage.removeItem(RINGTONE_KEY); } catch (_) {}
-    $('followStatus').textContent = 'Ringtone muted. Team popups still work.';
-  } else {
-    try {
-      await startAudio();
-      ringtoneEnabled = true;
-      try { localStorage.setItem(RINGTONE_KEY,'1'); } catch (_) {}
-      $('followStatus').textContent = 'Ringtone enabled on this device. Keep this page open for alerts.';
-      ringForNextTeam(); // Short sound preview confirms phone audio is enabled.
-    } catch (error) {
-      $('followStatus').textContent = error.message;
-    }
-  }
+  try {
+    await startAudio();
+    ringtoneEnabled = true;
+    try { localStorage.setItem(RINGTONE_KEY,'1'); } catch (_) {}
+    $('followStatus').textContent = 'Ringtone enabled. Keep this page open for sound alerts.';
+    ringForNextTeam(); // User-initiated audio preview.
+  } catch (error) { $('followStatus').textContent = error.message; }
+  updateRingtoneButton();
+});
+$('disableRingtone').addEventListener('click', () => {
+  ringtoneEnabled = false;
+  stopRingtone();
+  try { localStorage.setItem(RINGTONE_KEY,'0'); } catch (_) {}
+  $('followStatus').textContent = 'Ringtone disabled on this device.';
   updateRingtoneButton();
 });
 // Remember preference, but enable sound only after a fresh tap in each page session.
@@ -382,15 +392,30 @@ function validName(value,max=60) {
 $('followTeam').addEventListener('change', event => setFollow(event.target.value));
 $('dismissTeamAlert').addEventListener('click', () => { stopRingtone(); $('teamAlertBackdrop').classList.add('hidden'); });
 $('enableNotifications').addEventListener('click', async () => {
+  notificationsEnabled = true;
+  try { localStorage.setItem(NOTIFICATIONS_KEY,'1'); } catch (_) {}
+  // Enabling while already first in queue should be able to show the alert again.
+  notifiedTeams.clear();
+  updateNotificationButtons();
   if (!('Notification' in window) || !('requestPermission' in Notification)) {
-    $('followStatus').textContent = 'Browser notifications are unavailable here. In-page popups will still work while this site is open.';
+    $('followStatus').textContent = 'In-page notifications enabled. Browser notifications are not supported on this device.';
     return;
   }
   try {
     const permission = await Notification.requestPermission();
-    $('followStatus').textContent = permission === 'granted' ? 'Browser notifications enabled for this device.' : 'Browser notifications were not enabled. In-page popups still work.';
-  } catch (_) { $('followStatus').textContent = 'Browser notifications unavailable. In-page popups still work.'; }
+    $('followStatus').textContent = permission === 'granted'
+      ? 'Team popups and browser notifications enabled.'
+      : 'Team popups enabled; browser notifications are not permitted.';
+  } catch (_) { $('followStatus').textContent = 'Team popups enabled. Browser notifications unavailable.'; }
 });
+$('disableNotifications').addEventListener('click', () => {
+  notificationsEnabled = false;
+  try { localStorage.setItem(NOTIFICATIONS_KEY,'0'); } catch (_) {}
+  $('teamAlertBackdrop').classList.add('hidden');
+  $('followStatus').textContent = 'Popups and browser notifications disabled for this site on this device. Ringtone is controlled separately.';
+  updateNotificationButtons();
+});
+updateNotificationButtons();
 
 $('signupForm').addEventListener('submit',async event => {
   event.preventDefault();
@@ -482,9 +507,17 @@ $('logoutBtn').addEventListener('click',async() => {
 
 $('saveSiteTheme').addEventListener('click',async() => {
   const selected = $('siteTheme').value;
-  if (!THEME_NAMES.includes(selected)) return;
-  await runAdmin(() => checkedMutation(db.from('queue_settings')
-    .update({site_theme:selected}).eq('id',true)), 'Website theme updated for everyone');
+  if (!THEME_NAMES.includes(selected) || !admin || saving) return;
+  // Verify the returned setting rather than assuming an UPDATE matched a row.
+  const applied = await runAdmin(async () => {
+    const result = await db.from('queue_settings')
+      .update({site_theme:selected}).eq('id',true).select('site_theme').maybeSingle();
+    if (result.error) throw result.error;
+    if (!result.data) throw new Error('Theme was not saved: no settings row was updated. Run fix_theme_permissions.sql in Supabase.');
+    if (result.data.site_theme !== selected) throw new Error('Supabase returned a different theme than requested.');
+    applyTheme(result.data.site_theme);
+  }, 'Theme saved for everyone: ' + selected);
+  if (!applied) $('siteTheme').value = selected;
 });
 $('saveMaxTeamSize').addEventListener('click',async() => {
   const number = Number($('maxTeamSize').value);
