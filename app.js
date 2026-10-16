@@ -14,7 +14,28 @@ const configured = SUPABASE_URL.startsWith('https://') &&
   SUPABASE_ANON_KEY.length > 20 && !SUPABASE_ANON_KEY.includes('YOUR_');
 const db = configured ? createClient(SUPABASE_URL,SUPABASE_ANON_KEY) : null;
 
-let courts = [], teams = [], players = [], completed = [], maxTeamSize = 6;
+let courts = [], teams = [], players = [], subs = [], completed = [], maxTeamSize = 6;
+// Signup ownership tokens are random secrets local to this browser. They never
+// appear in public team data or the URL. Server stores only token hashes.
+const OWNED_PLAYERS_KEY = 'vb-my-signups-v102';
+const OWNED_SUBS_KEY = 'vb-my-subs-v102';
+function readOwned(key) {
+  try { const value = JSON.parse(localStorage.getItem(key) || '{}');
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch (_) { return {}; }
+}
+const ownedPlayers = readOwned(OWNED_PLAYERS_KEY);
+const ownedSubs = readOwned(OWNED_SUBS_KEY);
+function storeOwned(key,records) {
+  try { localStorage.setItem(key,JSON.stringify(records)); return true; }
+  catch (_) { return false; }
+}
+function privateToken() {
+  if (!crypto?.randomUUID) throw new Error('This browser cannot create a secure private signup token. Use HTTPS and an up-to-date browser.');
+  return crypto.randomUUID();
+}
+let subDraft = {open:false,name:'',position:'Flexible / Any',teamId:null};
+let selfLeaving = false;
 const THEME_NAMES = ['default','halloween','christmas','thanksgiving','valentines','stpatricks','fourthofjuly'];
 let siteTheme = 'default';
 let themePreviewPending = false;
@@ -240,6 +261,15 @@ const sortTeams = values => [...values].sort((a,b) =>
 const sortCourts = values => [...values].sort((a,b) =>
   a.sort_order - b.sort_order || a.name.localeCompare(b.name));
 const roster = team => players.filter(player => player.team_id === team.id);
+const teamSubs = team => subs.filter(sub => sub.team_id === team.id);
+const teamCount = team => roster(team).length + teamSubs(team).length;
+const formattedTeamRoster = team => [
+  ...roster(team).map(playerHtml),
+  ...teamSubs(team).map(item=>`${playerHtml(item)} <span class="sub-tag">SUB</span>`)
+].join(' · ');
+function myTeamRank(player,waiting) {
+  return waiting.findIndex(team=>team.id===player.team_id)+1;
+}
 const teamById = id => teams.find(team => team.id === id);
 const courtById = id => courts.find(court => court.id === id);
 
@@ -253,7 +283,7 @@ function explain(error) {
   if (error?.code === '42501' || /permission denied/i.test(detail)) {
     return 'Permission denied. Run fix_existing_database.sql in Supabase SQL Editor, then sign out and back in. Details: ' + detail;
   }
-  if (error?.code === '23505' && /players_name_unique_normalized|duplicate player name/i.test(detail)) return 'That player name is already registered. Please use a different name.';
+  if (error?.code === '23505' && /players_name_unique_normalized|team_subs_name_normalized_unique|duplicate player name/i.test(detail)) return 'That name is already registered. Please use a different name.';
   if (error?.code === '23505') return 'A record with that name already exists. ' + detail;
   if (error?.code === 'PGRST116') return 'The operation did not match a record. Refresh the page and try again.';
   return detail;
@@ -265,17 +295,42 @@ function playerHtml(player) {
   return `${safe(player.name)} <span class="hint">(${safe(player.preferred_position || 'Flexible / Any')})</span>`;
 }
 function teamTitle(team) {
-  const count = roster(team).length;
+  const count = teamCount(team);
   return `${safe(team.name)} <span class="hint">(${count}/${maxTeamSize}${count>=maxTeamSize?' · FULL':''})</span>`;
+}
+function subFormHtml(team) {
+  const count = teamCount(team);
+  if (count >= maxTeamSize) return '<p class="sub-full">This team is full. No subs needed.</p>';
+  if (subDraft.teamId !== team.id) {
+    subDraft = {open:false,name:'',position:'Flexible / Any',teamId:team.id};
+  }
+  const eligibleFrom = `You may sub if you are not on a team, or your regular team is at least three places behind the first team. Players on the first team or the next two teams cannot sub.`;
+  const positionOptions = positions.map(p=>`<option value="${safe(p)}" ${p===subDraft.position?'selected':''}>${safe(p)}</option>`).join('');
+  return `<div class="sub-volunteer">
+    <label class="sub-toggle"><input id="subOptIn" type="checkbox" ${subDraft.open?'checked':''} /> <span><strong>I'd like to sub for this team</strong><small>${maxTeamSize-count} open ${maxTeamSize-count===1?'spot':'spots'} available</small></span></label>
+    ${subDraft.open?`<form id="subForm" class="sub-fields">
+      <label>Your name<input id="subName" name="subName" maxlength="60" autocomplete="off" placeholder="Your first name or nickname" value="${safe(subDraft.name)}" required /></label>
+      <label>Preferred position<select id="subPosition" name="subPosition">${positionOptions}</select></label>
+      <p class="hint">${eligibleFrom}</p>
+      <button class="primary" type="submit">Add me as a sub</button>
+      <p class="message" id="subStatus" role="status"></p>
+    </form>`:''}
+  </div>`;
 }
 function teamCard(team,isNext=false,place=1) {
   const items = roster(team);
+  const standIns = teamSubs(team);
+  const count = items.length+standIns.length;
   return `<div class="team-row ${isNext?'next':''}">
     <div class="queue-rank" aria-label="Queue position ${place}">${isNext?'★':place}</div>
     <div class="queue-team-details">
-      <div class="team-name">${safe(team.name)} <span class="team-capacity">${items.length}/${maxTeamSize} players</span></div>
+      <div class="team-name">${safe(team.name)} <span class="team-capacity">${count}/${maxTeamSize} players</span></div>
       ${isNext?'<div class="next-callout">FIRST IN LINE · NEXT AVAILABLE COURT</div>':''}
-      <div class="queue-roster">${items.length?items.map(player=>`<span class="roster-chip">${playerHtml(player)}</span>`).join(''):'<span class="roster-empty">No players signed up yet</span>'}</div>
+      <div class="queue-roster">${count ? [
+        ...items.map(player=>`<span class="roster-chip">${playerHtml(player)}</span>`),
+        ...standIns.map(sub=>`<span class="roster-chip">${playerHtml(sub)} <span class="sub-tag">SUB</span></span>`)
+      ].join(''):'<span class="roster-empty">No players signed up yet</span>'}</div>
+      ${isNext?subFormHtml(team):''}
     </div>
   </div>`;
 }
@@ -285,11 +340,11 @@ function renderPublic() {
   const chosen = $('teamChoice').value;
   const available = sortTeams(teams.filter(team => team.status === 'waiting'));
   $('teamChoice').innerHTML = '<option value="">Choose a team</option>' + available.map(team => {
-    const count = roster(team).length;
+    const count = teamCount(team);
     const full = count >= maxTeamSize;
     return `<option value="${safe(team.id)}" ${full?'disabled':''}>${safe(team.name)} · ${count}/${maxTeamSize}${full?' · FULL':''}</option>`;
   }).join('');
-  if (available.some(team => team.id === chosen && roster(team).length < maxTeamSize)) {
+  if (available.some(team => team.id === chosen && teamCount(team) < maxTeamSize)) {
     $('teamChoice').value = chosen;
   }
 
@@ -297,7 +352,7 @@ function renderPublic() {
   const selectedFollow = followedTeam;
   const followable = sortTeams(teams.filter(team => team.status !== 'done'));
   $('followTeam').innerHTML = '<option value="">Choose your team</option>' + followable.map(team =>
-    `<option value="${safe(team.id)}">${safe(team.name)} · ${roster(team).length} players</option>`).join('');
+    `<option value="${safe(team.id)}">${safe(team.name)} · ${teamCount(team)} players</option>`).join('');
   if (followable.some(team => team.id === selectedFollow)) $('followTeam').value = selectedFollow;
   else if (selectedFollow) {
     setFollow('');
@@ -325,13 +380,15 @@ function renderPublic() {
   </article>`;
 
   renderHistory();
-  $('playerCount').textContent = `${players.length} players`;
+  $('playerCount').textContent = `${players.length} players · ${subs.length} subs`;
+  renderMySignups();
   $('teamDirectory').innerHTML = sortTeams(teams.filter(team => team.status !== 'done')).map(team => {
     const members = roster(team);
+    const volunteers = teamSubs(team);
     return `<div class="directory-card">
       <strong>${teamTitle(team)}</strong>
       <div class="hint">${safe(courtById(team.court_id)?.name || 'Unassigned')} · ${safe(team.status)}</div>
-      <div class="players">${members.length?members.map(playerHtml).join(' · '):'No signups yet'}</div>
+      <div class="players">${members.length+volunteers.length?formattedTeamRoster(team):'No signups yet'}</div>
     </div>`;
   }).join('') || '<div class="empty">No teams yet. Ask an admin to add them.</div>';
 }
@@ -344,10 +401,30 @@ function renderHistory() {
     const stamp = item.completed_at ? new Date(item.completed_at).toLocaleString() : '';
     return `<article class="directory-card"><strong>${safe(item.team_name)}</strong>
       <div class="hint">${safe(stamp)} · ${members.length} players</div>
-      <div class="players">${members.length ? members.map(playerHtml).join(' · ') : 'No players were signed up'}</div>
+      <div class="players">${members.length ? members.map(member=>playerHtml(member)+(member.is_sub?' <span class="sub-tag">SUB</span>':'')).join(' · ') : 'No players were signed up'}</div>
     </article>`;
   }).join('') : '<div class="empty">No teams have been sent to play yet.</div>';
   $('historyCount').textContent = `${completed.length} previous teams`;
+}
+
+function renderMySignups() {
+  const host = $('mySignups');
+  if (!host) return;
+  const members = players.filter(p=>Object.hasOwn(ownedPlayers,p.id));
+  const standIns = subs.filter(s=>Object.hasOwn(ownedSubs,s.id));
+  const records = [
+    ...members.map(p=>({...p,kind:'player'})),
+    ...standIns.map(s=>({...s,kind:'sub'}))
+  ];
+  host.innerHTML = records.length ? records.map(person => {
+    const team = teamById(person.team_id);
+    const label = person.kind==='sub'?'SUB':'PLAYER';
+    return `<div class="my-signup-row">
+      <div><strong>${safe(person.name)}</strong> <span class="sub-tag">${label}</span>
+      <div class="hint">${safe(team?.name || 'Team removed')} · ${safe(person.preferred_position||'Flexible / Any')}</div></div>
+      <button class="danger small" type="button" data-leave-kind="${person.kind}" data-leave-id="${safe(person.id)}" ${selfLeaving?'disabled':''}>Leave ${person.kind==='sub'?'sub spot':'team'}</button>
+    </div>`;
+  }).join('') : '<p class="hint">No active signups from this device yet. After joining a team or volunteering as a sub, a Leave button will appear here.</p>';
 }
 
 function renderAdmin() {
@@ -388,6 +465,12 @@ function renderAdmin() {
         ${button('Change position','editPosition',player.id)}${button('Move to team','movePlayer',player.id)}
         ${button('Remove','deletePlayer',player.id,'danger')}</div></div>`
   ).join('') || '<div class="empty">No players signed up.</div>';
+  if (subs.length) {
+    $('adminPlayers').innerHTML += `<p class="hint">Temporary substitutes</p>` + [...subs].sort((a,b)=>a.name.localeCompare(b.name)).map(sub => `
+      <div class="admin-team"><strong>${safe(sub.name)}</strong> <span class="sub-tag">SUB</span>
+      <span class="hint">· ${safe(teamById(sub.team_id)?.name || 'Unknown team')}</span>
+      <div class="actions">${button('Remove sub','adminRemoveSub',sub.id,'danger')}</div></div>`).join('');
+  }
 }
 
 async function load(forceAdminRender=false) {
@@ -404,16 +487,17 @@ async function load(forceAdminRender=false) {
       db.from('courts').select('*').order('sort_order'),
       db.from('teams').select('*').order('queue_order'),
       db.from('players').select('*').order('created_at'),
+      db.from('team_subs').select('id,team_id,name,preferred_position,source_player_id,created_at').order('created_at'),
       db.from('queue_settings').select('max_team_size,site_theme').eq('id',true).single(),
       db.from('completed_teams').select('id,team_name,roster,completed_at').order('id',{ascending:false}).limit(200)
     ]);
     for (const result of results) if (result.error) throw result.error;
     if (readVersion !== latestRead) return;
-    [courts,teams,players] = results.slice(0,3).map(result => result.data);
-    maxTeamSize = results[3].data.max_team_size;
-    savedSiteTheme = results[3].data.site_theme || 'default';
+    [courts,teams,players,subs] = results.slice(0,4).map(result => result.data);
+    maxTeamSize = results[4].data.max_team_size;
+    savedSiteTheme = results[4].data.site_theme || 'default';
     if (!themePreviewPending) applyTheme(savedSiteTheme);
-    completed = results[4].data;
+    completed = results[5].data;
     renderPublic();
     if (forceAdminRender) document.activeElement?.blur?.();
     renderAdmin();
@@ -475,6 +559,7 @@ async function runAdmin(action,success='Saved') {
 async function rpc(name,args) {
   const result = await db.rpc(name,args);
   if (result.error) throw result.error;
+  return result.data;
 }
 // Friendly immediate feedback; the matching Supabase trigger is authoritative.
 const blockedWords = [
@@ -501,7 +586,7 @@ function normalizedPlayerName(name) {
 }
 function ensureUniquePlayerName(name, excludingId=null) {
   const normalized = normalizedPlayerName(name);
-  if (players.some(player => player.id !== excludingId && normalizedPlayerName(player.name) === normalized)) {
+  if (players.some(player => player.id !== excludingId && normalizedPlayerName(player.name) === normalized) || subs.some(sub => normalizedPlayerName(sub.name) === normalized)) {
     throw new Error('That player name is already signed up. Please use a different name.');
   }
 }
@@ -555,13 +640,20 @@ $('signupForm').addEventListener('submit',async event => {
   }
   submit.disabled = true;
   try {
-    await rpc('signup_player',{
-      player_name:playerName, selected_team:selectedTeam, player_position:playerPosition
+    const token = privateToken();
+    const id = await rpc('signup_player_owned',{
+      player_name:playerName, selected_team:selectedTeam, player_position:playerPosition,
+      leave_token:token
     });
+    if (!id) throw new Error('Signup completed, but did not return a signup ID. Contact an admin for help leaving.');
+    ownedPlayers[id] = token;
+    if (!storeOwned(OWNED_PLAYERS_KEY,ownedPlayers)) {
+      message('signupStatus','Signup saved, but this browser could not store your private leave token. Ask an admin to remove you if you need to leave.',true);
+    }
     $('playerName').value = '';
     $('playerPosition').value = '';
     setFollow(selectedTeam);
-    message('signupStatus','You are signed up! Alerts are now following your team on this device.');
+      try { if (localStorage.getItem(OWNED_PLAYERS_KEY)) message('signupStatus','You are signed up! Use Leave Team below if you need to go. Alerts are following your team.'); } catch (_) {}
     await load();
   } catch (error) {
     message('signupStatus',explain(error),true);
@@ -569,6 +661,92 @@ $('signupForm').addEventListener('submit',async event => {
     submit.disabled = false;
   }
 });
+// Temporary subs only appear for the first-in-line team while it has space.
+$('courtGrid').addEventListener('change',event => {
+  if (event.target.id === 'subOptIn') {
+    subDraft.open = event.target.checked;
+    renderPublic();
+    if (subDraft.open) $('subName')?.focus();
+  }
+  if (event.target.id === 'subPosition') subDraft.position = event.target.value;
+});
+$('courtGrid').addEventListener('input',event => {
+  if (event.target.id === 'subName') subDraft.name = event.target.value;
+});
+$('courtGrid').addEventListener('submit',async event => {
+  if (event.target.id !== 'subForm') return;
+  event.preventDefault();
+  const form = event.target;
+  const submit = form.querySelector('button[type=submit]');
+  let name;
+  try { name = validName(subDraft.name); }
+  catch(error) { message('subStatus',error.message,true); return; }
+  const original = players.find(p=>normalizedPlayerName(p.name)===normalizedPlayerName(name));
+  const waiting = sortTeams(teams.filter(team=>team.status==='waiting'));
+  let token;
+  if (original) {
+    token = ownedPlayers[original.id];
+    if (!token) {
+      message('subStatus','That name is registered on a team, but this phone does not own the signup. Use the phone that originally signed up, or ask an admin to help.',true); return;
+    }
+    const rank = myTeamRank(original,waiting);
+    if (rank < 1 || rank <= 3) {
+      message('subStatus',`Your team is #${rank} in line. Teams 1, 2 and 3 cannot supply subs for the first team.`,true); return;
+    }
+  } else {
+    try { token = privateToken(); } catch (error) { message('subStatus',error.message,true); return; }
+  }
+  submit.disabled = true;
+  try {
+    const id = await rpc('join_first_team_as_sub',{
+      sub_name:name, sub_position:subDraft.position,
+      source_player_id:original?.id || null, leave_token:token
+    });
+    if (!id) throw new Error('The server did not return a substitute signup ID');
+    ownedSubs[id] = token;
+    const stored = storeOwned(OWNED_SUBS_KEY,ownedSubs);
+    subDraft = {open:false,name:'',position:'Flexible / Any',teamId:null};
+    await load();
+    message('queueStatus',stored?'You are signed up as a sub! Use Leave Sub Spot below to withdraw.':'Sub signup saved, but this browser could not save your leave token. Ask an admin to remove the sub if needed.',!stored);
+  } catch(error) {
+    message('subStatus',explain(error),true);
+  } finally {
+    submit.disabled = false;
+  }
+});
+$('mySignups').addEventListener('click',async event => {
+  const btn = event.target.closest('button[data-leave-kind]');
+  if (!btn || selfLeaving) return;
+  const id = btn.dataset.leaveId;
+  const isSub = btn.dataset.leaveKind === 'sub';
+  const entry = isSub ? subs.find(x=>x.id===id) : players.find(x=>x.id===id);
+  const token = (isSub?ownedSubs:ownedPlayers)[id];
+  if (!token || !entry) return;
+  const action = isSub ? 'withdraw your substitute spot' : 'leave your team';
+  if (!confirm(`Remove ${entry.name} and ${action}? This cannot be undone except by signing up again if space is available.`)) return;
+  selfLeaving = true;
+  renderMySignups();
+  try {
+    await rpc(isSub?'leave_my_sub':'leave_my_team',
+      isSub?{sub_id:id,leave_token:token}:{player_id:id,leave_token:token});
+    delete (isSub?ownedSubs:ownedPlayers)[id];
+    storeOwned(isSub?OWNED_SUBS_KEY:OWNED_PLAYERS_KEY,isSub?ownedSubs:ownedPlayers);
+    if (!isSub) {
+      // Leaving the original team also withdraws any active sub signup.
+      subs.filter(sub=>sub.source_player_id===id).forEach(sub=>delete ownedSubs[sub.id]);
+      storeOwned(OWNED_SUBS_KEY,ownedSubs);
+      if (followedTeam === entry.team_id) setFollow('');
+    }
+    await load();
+    message('leaveStatus',`${entry.name} was removed successfully.`);
+  } catch(error) {
+    message('leaveStatus',explain(error),true);
+  } finally {
+    selfLeaving = false;
+    renderMySignups();
+  }
+});
+
 // Expand/collapse is display-only; it never contacts Supabase or advances the queue.
 $('courtGrid').addEventListener('click', event => {
   const toggle = event.target.closest('button[data-queue-toggle]');
@@ -787,6 +965,11 @@ $('adminSection').addEventListener('click',async event => {
     await runAdmin(() => checkedMutation(db.from('players')
       .update({team_id:destination.id}).eq('id',id)),'Player moved');
     return;
+  }
+  if (action==='adminRemoveSub') {
+    const item = subs.find(sub=>sub.id===id);
+    if (!item || !confirm(`Remove ${item.name} from the substitute list?`)) return;
+    await runAdmin(() => rpc('admin_remove_sub',{target_sub:id}),'Substitute removed');
   }
   if (action==='deletePlayer' && player) {
     if (!confirm(`Remove ${player.name} from the signup list?`)) return;

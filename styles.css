@@ -153,3 +153,15 @@ input,textarea,select {background:var(--input);border-color:var(--border)}
 .queue-expand-button { display:block; width:100%; min-height:46px; margin-top:12px; border-radius:12px; font-weight:750; }
 .queue-expand-button:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
 @media (max-width:600px) { .following-heading { align-items:flex-start; } .following-heading .hint { font-size:.77rem; } }
+
+/* V1.02 — first-in-line volunteer panel and private Leave Team controls */
+.sub-volunteer{margin-top:15px;padding:12px;border:1px solid var(--accent);border-radius:12px;background:var(--panel);color:var(--text)}
+.sub-toggle{display:flex;align-items:center;gap:10px;margin:0;cursor:pointer;font-size:.9rem}
+.sub-toggle input{display:block;width:21px;height:21px;flex:none;margin:0;accent-color:var(--accent)}
+.sub-toggle span{display:flex;flex-direction:column;gap:3px}.sub-toggle small{font-size:.8rem;color:var(--muted)}
+.sub-fields{margin-top:14px}.sub-fields label{margin:0 0 10px}.sub-fields .primary{width:100%;min-height:44px}
+.sub-tag{display:inline-block;padding:2px 6px;border:1px solid var(--accent);color:var(--accent);font-weight:750;font-size:.65rem;letter-spacing:.05em;border-radius:6px;vertical-align:1px}
+.sub-full{font-size:.8rem;margin:9px 0 0;color:var(--muted)}
+.my-signup-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--border)}
+.my-signup-row:last-child{border-bottom:0}.my-signup-row button{flex:none;min-height:42px}
+@media(max-width:420px){.my-signup-row{flex-wrap:wrap}.my-signup-row button{width:100%}}
