@@ -53,3 +53,8 @@ main {max-width:990px}
 .signup-section form button {min-height:48px;font-size:1rem}
 .secondary-directory {margin-top:10px}
 @media(max-width:600px){.signup-section form{display:block}.single-queue .team-row{gap:9px;padding:12px}.single-queue .team-row.next{padding:16px 12px}.roster-chip{font-size:.78rem}.next .queue-team-details .team-name{font-size:1.45rem}.topbar h1{font-size:1.7rem}}
+
+/* Public queue controls remain visible above the team list on mobile and desktop. */
+.single-queue .public-court-actions.top-queue-actions { margin: 12px 0 18px; padding: 0 0 15px; border-top: 0; border-bottom: 1px solid var(--border); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.single-queue .top-queue-actions button { min-height: 52px; }
+@media (max-width: 390px) { .single-queue .public-court-actions.top-queue-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; } .single-queue .top-queue-actions button { font-size: .85rem; padding: 10px 6px; } }

@@ -116,13 +116,13 @@ function renderPublic() {
   $('courtGrid').innerHTML = `<article class="court-card single-queue">
     <div class="court-top"><h3>🏐 Live team lineup</h3><span class="tag">${waiting.length} teams in line</span></div>
     <div class="hint">Next available court: ${courtNames || 'No courts configured'}</div>
-    <div class="subtitle">UP NEXT</div>
-    ${waiting.length ? teamCard(waiting[0],true,1) : '<div class="empty">No teams waiting</div>'}
-    ${waiting.length>1 ? `<div class="subtitle">Teams following in queue</div>${waiting.slice(1).map((team,index)=>teamCard(team,false,index+2)).join('')}` : ''}
-    <div class="public-court-actions" role="group" aria-label="Queue controls">
+    <div class="public-court-actions top-queue-actions" role="group" aria-label="Queue controls">
       ${button('↶ Previous Team','undo','queue','secondary',publicRotating)}
       ${button('▶ Next Team','advance','queue','primary',publicRotating || !waiting.length || !courts.length)}
     </div>
+    <div class="subtitle">UP NEXT</div>
+    ${waiting.length ? teamCard(waiting[0],true,1) : '<div class="empty">No teams waiting</div>'}
+    ${waiting.length>1 ? `<div class="subtitle">Teams following in queue</div>${waiting.slice(1).map((team,index)=>teamCard(team,false,index+2)).join('')}` : ''}
   </article>`;
 
   renderHistory();
