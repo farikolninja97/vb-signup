@@ -74,11 +74,16 @@ function teamTitle(team) {
   const count = roster(team).length;
   return `${safe(team.name)} <span class="hint">(${count}/${maxTeamSize}${count>=maxTeamSize?' · FULL':''})</span>`;
 }
-function teamCard(team,isNext=false) {
+function teamCard(team,isNext=false,place=1) {
   const items = roster(team);
   return `<div class="team-row ${isNext?'next':''}">
-    <div><div class="team-name">${isNext?'<span class="next-label">NEXT UP</span> ':''}${teamTitle(team)}</div>
-    <div class="players">${items.length?items.map(playerHtml).join(' · '):'No players yet'}</div></div></div>`;
+    <div class="queue-rank" aria-label="Queue position ${place}">${isNext?'★':place}</div>
+    <div class="queue-team-details">
+      <div class="team-name">${safe(team.name)} <span class="team-capacity">${items.length}/${maxTeamSize} players</span></div>
+      ${isNext?'<div class="next-callout">FIRST IN LINE · NEXT AVAILABLE COURT</div>':''}
+      <div class="queue-roster">${items.length?items.map(player=>`<span class="roster-chip">${playerHtml(player)}</span>`).join(''):'<span class="roster-empty">No players signed up yet</span>'}</div>
+    </div>
+  </div>`;
 }
 
 function renderPublic() {
@@ -109,11 +114,11 @@ function renderPublic() {
   checkFollowAlert(waiting);
   const courtNames = sortCourts(courts).map(court => safe(court.name)).join(' · ');
   $('courtGrid').innerHTML = `<article class="court-card single-queue">
-    <div class="court-top"><h3>🏐 Team queue</h3><span class="tag">${waiting.length} waiting</span></div>
+    <div class="court-top"><h3>🏐 Live team lineup</h3><span class="tag">${waiting.length} teams in line</span></div>
     <div class="hint">Next available court: ${courtNames || 'No courts configured'}</div>
-    <div class="subtitle">FIRST IN LINE — NEXT TO PLAY</div>
-    ${waiting.length ? teamCard(waiting[0],true) : '<div class="empty">No teams waiting</div>'}
-    ${waiting.length>1 ? `<div class="subtitle">Coming up in order</div>${waiting.slice(1).map(team=>teamCard(team)).join('')}` : ''}
+    <div class="subtitle">UP NEXT</div>
+    ${waiting.length ? teamCard(waiting[0],true,1) : '<div class="empty">No teams waiting</div>'}
+    ${waiting.length>1 ? `<div class="subtitle">Teams following in queue</div>${waiting.slice(1).map((team,index)=>teamCard(team,false,index+2)).join('')}` : ''}
     <div class="public-court-actions" role="group" aria-label="Queue controls">
       ${button('↶ Previous Team','undo','queue','secondary',publicRotating)}
       ${button('▶ Next Team','advance','queue','primary',publicRotating || !waiting.length || !courts.length)}

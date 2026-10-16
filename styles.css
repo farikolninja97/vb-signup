@@ -20,3 +20,36 @@
 .alert-emoji{font-size:44px}
 
 .view-tabs{display:flex;gap:10px;margin:16px 0 10px;flex-wrap:wrap}.view-tabs button{flex:1;min-width:140px}
+
+/* Queue-first homepage redesign */
+main {max-width:990px}
+.section-title {margin:6px 0 6px}
+.section-title h2 {font-size:clamp(1.45rem,4vw,2rem)}
+.queue-explainer {margin:0 0 12px;line-height:1.6}
+#courtGrid {display:block;margin-bottom:24px}
+.single-queue {max-width:none;padding:clamp(14px,3.5vw,26px);background:linear-gradient(145deg,#172942,#121d30)}
+.single-queue .court-top {margin-bottom:16px}
+.single-queue .court-top h3 {font-size:1.17rem}
+.single-queue .subtitle {margin:19px 0 10px;color:#c4d7f2}
+.single-queue .team-row {align-items:flex-start;justify-content:flex-start;gap:14px;padding:14px 15px;margin-bottom:9px;border-radius:13px}
+.single-queue .team-row.next {background:linear-gradient(120deg,#105043,#173c41);border:2px solid #5cebb2;padding:20px 16px;box-shadow:0 8px 30px #00c88712}
+.queue-rank {height:34px;width:34px;min-width:34px;border-radius:50%;background:#2b405b;color:#d6e4ff;font-weight:800;display:grid;place-items:center}
+.next .queue-rank {background:#78f2bb;color:#082b24;height:42px;width:42px;min-width:42px;font-size:1.35rem}
+.queue-team-details {min-width:0;flex:1}
+.queue-team-details .team-name {font-size:1.05rem;display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.next .queue-team-details .team-name {font-size:clamp(1.35rem,5vw,1.8rem)}
+.team-capacity {font-size:.78rem;font-weight:700;color:#c3d1e4;background:#263f56;border-radius:30px;padding:5px 9px;white-space:nowrap}
+.next-callout {font-size:.71rem;letter-spacing:.08em;font-weight:900;color:#89ffc7;margin:5px 0 10px}
+.queue-roster {display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.roster-chip {display:inline-block;background:#263a50;border:1px solid #416078;border-radius:20px;padding:6px 10px;color:#f2f7ff;font-size:.82rem}
+.roster-chip .hint {display:inline;color:#c1d2e6;font-size:.75rem}
+.next .roster-chip {background:#225348;border-color:#478c70}
+.roster-empty {color:#9db0c7;font-size:.82rem;font-style:italic}
+.signup-section {border:1px solid #547d89}
+.signup-section .panel-heading h2 {font-size:1.5rem}
+.signup-section .panel-heading::before {content:'✍️';font-size:1.3rem}
+.signup-section form {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px}
+.signup-section form label:nth-child(3),.signup-section form button,.signup-section form .message {grid-column:1/-1}
+.signup-section form button {min-height:48px;font-size:1rem}
+.secondary-directory {margin-top:10px}
+@media(max-width:600px){.signup-section form{display:block}.single-queue .team-row{gap:9px;padding:12px}.single-queue .team-row.next{padding:16px 12px}.roster-chip{font-size:.78rem}.next .queue-team-details .team-name{font-size:1.45rem}.topbar h1{font-size:1.7rem}}
