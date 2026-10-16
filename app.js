@@ -52,6 +52,88 @@ function applyTheme(name) {
 applyTheme('default');
 let admin = false, loading = false, saving = false, publicRotating = false;
 let latestRead = 0;
+// Supabase Database Broadcast: the database emits a tiny public invalidation event.
+// No names, rosters, or admin information are sent in these messages.
+const REALTIME_TOPIC = 'vb:intermediate-queue:v1';
+const BACKUP_REFRESH_MS = 60_000;
+let realtimeChannel = null;
+let realtimeConnected = false;
+let realtimeRefreshTimer = null;
+let lastRealtimeReloadAt = 0;
+let realtimeRetryTimer = null;
+let refreshQueuedDuringLoad = false;
+
+function connectionStatus(kind) {
+  const badge = $('connectionStatus');
+  if (!badge) return;
+  const labels = {
+    live: '● Live updates',
+    connecting: '◌ Connecting…',
+    fallback: '◌ Backup refresh · 60s',
+    paused: '◌ Paused in background',
+    offline: '○ Offline'
+  };
+  badge.textContent = labels[kind] || labels.fallback;
+  badge.dataset.state = kind;
+}
+function scheduleRefresh(delay = 350) {
+  if (!db || document.hidden) return;
+  // First event schedules one read; more events while pending are coalesced.
+  // Throttle bursts to avoid an open public channel forcing excessive reads.
+  if (realtimeRefreshTimer) return;
+  const throttleMs = Math.max(0, 1000 - (Date.now() - lastRealtimeReloadAt));
+  realtimeRefreshTimer = setTimeout(() => {
+    realtimeRefreshTimer = null;
+    lastRealtimeReloadAt = Date.now();
+    void load();
+  }, Math.max(delay, throttleMs));
+}
+function scheduleRealtimeRetry() {
+  if (realtimeRetryTimer || document.hidden || !navigator.onLine) return;
+  realtimeRetryTimer = setTimeout(() => {
+    realtimeRetryTimer = null;
+    if (!realtimeConnected && !document.hidden) void reconnectRealtime();
+  }, 15_000);
+}
+function startRealtime() {
+  if (!db || document.hidden || realtimeChannel) return;
+  connectionStatus('connecting');
+  const channel = db.channel(REALTIME_TOPIC, {config:{private:false}});
+  realtimeChannel = channel;
+  channel.on('broadcast', {event:'queue_changed'}, () => scheduleRefresh(400));
+  channel.subscribe(status => {
+    // Ignore callbacks belonging to a channel we deliberately closed.
+    if (realtimeChannel !== channel) return;
+    if (status === 'SUBSCRIBED') {
+      realtimeConnected = true;
+      clearTimeout(realtimeRetryTimer);
+      realtimeRetryTimer = null;
+      connectionStatus('live');
+      // Catch a change that happened during the connection handshake.
+      scheduleRefresh(0);
+    } else if (['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status)) {
+      realtimeConnected = false;
+      connectionStatus(navigator.onLine ? 'fallback' : 'offline');
+      scheduleRealtimeRetry();
+    }
+  });
+}
+async function stopRealtime() {
+  const old = realtimeChannel;
+  realtimeChannel = null;
+  realtimeConnected = false;
+  clearTimeout(realtimeRetryTimer);
+  realtimeRetryTimer = null;
+  if (old) {
+    try { await db.removeChannel(old); }
+    catch (err) { console.warn('Realtime channel cleanup:', err); }
+  }
+}
+async function reconnectRealtime() {
+  await stopRealtime();
+  if (!document.hidden && navigator.onLine) startRealtime();
+}
+
 const FOLLOW_KEY = 'vb-follow-team-v1';
 const notifiedTeams = new Set();
 const NOTIFICATIONS_KEY = 'vb-notifications-enabled-v1';
@@ -302,7 +384,12 @@ function renderAdmin() {
 }
 
 async function load(forceAdminRender=false) {
-  if (!db || loading) return;
+  if (!db) return;
+  if (loading) {
+    // Events arriving while a read is underway must not be lost.
+    refreshQueuedDuringLoad = true;
+    return;
+  }
   loading = true;
   const readVersion = ++latestRead;
   try {
@@ -328,6 +415,10 @@ async function load(forceAdminRender=false) {
     $('refreshBadge').textContent = 'Refresh failed: ' + explain(error);
   } finally {
     loading = false;
+    if (refreshQueuedDuringLoad) {
+      refreshQueuedDuringLoad = false;
+      scheduleRefresh(0);
+    }
   }
 }
 
@@ -693,6 +784,36 @@ if (!configured) {
 } else {
   await checkAdmin();
   await load();
-  setInterval(() => {if (!document.hidden && !saving) load();},5000);
-  document.addEventListener('visibilitychange', () => {if (!document.hidden) load();});
+  startRealtime();
+  // Reliable backup if a socket cannot connect, a message is missed or Realtime is disabled.
+  setInterval(() => {
+    if (document.hidden) return;
+    scheduleRefresh(0);
+    if (!realtimeConnected && navigator.onLine && !realtimeRetryTimer) {
+      void reconnectRealtime();
+    }
+  }, BACKUP_REFRESH_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      clearTimeout(realtimeRefreshTimer);
+      realtimeRefreshTimer = null;
+      connectionStatus('paused');
+      void stopRealtime();
+    } else {
+      startRealtime();
+      scheduleRefresh(0);
+    }
+  });
+  window.addEventListener('online', () => {
+    void reconnectRealtime();
+    scheduleRefresh(0);
+  });
+  window.addEventListener('offline', () => connectionStatus('offline'));
+  // iOS Safari can restore a page from its back-forward cache without reloading it.
+  window.addEventListener('pageshow', event => {
+    if (event.persisted && !document.hidden) {
+      startRealtime();
+      scheduleRefresh(0);
+    }
+  });
 }

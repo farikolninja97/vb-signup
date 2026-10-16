@@ -132,3 +132,11 @@ input,textarea,select {background:var(--input);border-color:var(--border)}
 @keyframes ball-wiggle{0%,88%,100%{rotate:0deg}93%{rotate:-12deg}97%{rotate:10deg}}
 @media(max-width:600px){.holiday-ornament{opacity:.35}.ornament-2,.ornament-4{display:none}.topbar::after{opacity:.12!important}}
 @media(prefers-reduced-motion:reduce){.theme-ball,.holiday-ornament{animation:none!important}}
+
+/* Supabase Realtime connection indicator */
+.queue-update-status{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;text-align:right}
+.connection-pill{font-size:.75rem;font-weight:700;border-radius:999px;padding:5px 10px;background:var(--panel,#1c2a40);border:1px solid var(--line,#344257);white-space:nowrap}
+.connection-pill[data-state="live"]{color:#72e9b2;border-color:#3b9776}
+.connection-pill[data-state="offline"]{color:#ff9d91;border-color:#a45454}
+.connection-pill[data-state="fallback"]{color:#edc17d;border-color:#957747}
+@media(max-width:600px){.queue-update-status{justify-content:flex-start;text-align:left}}
