@@ -17,6 +17,8 @@ const db = configured ? createClient(SUPABASE_URL,SUPABASE_ANON_KEY) : null;
 let courts = [], teams = [], players = [], completed = [], maxTeamSize = 6;
 const THEME_NAMES = ['default','halloween','christmas','thanksgiving','valentines','stpatricks','fourthofjuly'];
 let siteTheme = 'default';
+let themePreviewPending = false;
+let savedSiteTheme = 'default';
 function applyTheme(name) {
   siteTheme = THEME_NAMES.includes(name) ? name : 'default';
   document.documentElement.dataset.theme = siteTheme;
@@ -293,7 +295,8 @@ async function load(forceAdminRender=false) {
     if (readVersion !== latestRead) return;
     [courts,teams,players] = results.slice(0,3).map(result => result.data);
     maxTeamSize = results[3].data.max_team_size;
-    applyTheme(results[3].data.site_theme);
+    savedSiteTheme = results[3].data.site_theme || 'default';
+    if (!themePreviewPending) applyTheme(savedSiteTheme);
     completed = results[4].data;
     renderPublic();
     if (forceAdminRender) document.activeElement?.blur?.();
@@ -505,6 +508,14 @@ $('logoutBtn').addEventListener('click',async() => {
   await checkAdmin();
 });
 
+$('siteTheme').addEventListener('change', () => {
+  if (!admin) return;
+  themePreviewPending = true;
+  applyTheme($('siteTheme').value);
+  $('siteTheme').value = siteTheme;
+  message('adminStatus','Previewing '+siteTheme+'. Press Apply theme to save for everyone.');
+});
+
 $('saveSiteTheme').addEventListener('click',async() => {
   const selected = $('siteTheme').value;
   if (!THEME_NAMES.includes(selected) || !admin || saving) return;
@@ -515,9 +526,15 @@ $('saveSiteTheme').addEventListener('click',async() => {
     if (result.error) throw result.error;
     if (!result.data) throw new Error('Theme was not saved: no settings row was updated. Run fix_theme_permissions.sql in Supabase.');
     if (result.data.site_theme !== selected) throw new Error('Supabase returned a different theme than requested.');
-    applyTheme(result.data.site_theme);
+    themePreviewPending = false;
+    savedSiteTheme = result.data.site_theme;
+    applyTheme(savedSiteTheme);
   }, 'Theme saved for everyone: ' + selected);
-  if (!applied) $('siteTheme').value = selected;
+  if (!applied) {
+    themePreviewPending = false;
+    applyTheme(savedSiteTheme);
+    $('siteTheme').value = selected;
+  }
 });
 $('saveMaxTeamSize').addEventListener('click',async() => {
   const number = Number($('maxTeamSize').value);

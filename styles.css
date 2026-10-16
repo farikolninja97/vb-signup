@@ -89,3 +89,16 @@ input,textarea,select {background:var(--input);border-color:var(--border)}
 .theme-preview{display:flex;gap:8px;margin:0 0 16px}
 .theme-swatch{width:34px;height:24px;border-radius:8px;border:1px solid var(--border)}
 .swatch-background{background:var(--bg)}.swatch-panel{background:var(--panel)}.swatch-accent{background:var(--accent)}.swatch-highlight{background:var(--next-border)}
+
+/* Final palette overrides: eliminate leftover fixed teal colors from previous versions. */
+:root[data-theme] .team-row.next, :root[data-theme] .single-queue .team-row.next {background:var(--next-bg);border-color:var(--next-border)}
+:root[data-theme] .next-label {background:var(--accent);color:var(--accent-ink)}
+:root[data-theme] .next-callout {color:var(--next-text)}
+:root[data-theme] .queue-rank {background:var(--secondary-bg);color:var(--text)}
+:root[data-theme] .next .queue-rank {background:var(--accent);color:var(--accent-ink)}
+:root[data-theme] .team-capacity {background:var(--secondary-bg);color:var(--text)}
+:root[data-theme] .signup-section {border-color:var(--border)}
+:root[data-theme] .single-queue .subtitle {color:var(--muted)}
+:root[data-theme] .roster-chip, :root[data-theme] .next .roster-chip {background:var(--chip-bg);border-color:var(--chip-border);color:var(--text)}
+:root[data-theme] .primary {color:var(--accent-ink)}
+:root[data-theme] input, :root[data-theme] select {background:var(--input);border-color:var(--border)}
