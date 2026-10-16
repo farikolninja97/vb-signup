@@ -22,6 +22,28 @@ let savedSiteTheme = 'default';
 function applyTheme(name) {
   siteTheme = THEME_NAMES.includes(name) ? name : 'default';
   document.documentElement.dataset.theme = siteTheme;
+  const seasonal = {
+    default: {ball:'🏐', decorations:[]},
+    halloween: {ball:'🎃', decorations:['🕸️','🦇','🕷️','👻']},
+    christmas: {ball:'🎄', decorations:['❄️','🎁','🔔','✨']},
+    thanksgiving: {ball:'🍁', decorations:['🍂','🦃','🌾','🍁']},
+    valentines: {ball:'💗', decorations:['💕','💘','🌹','💞']},
+    stpatricks: {ball:'☘️', decorations:['🍀','🌈','🪙','☘️']},
+    fourthofjuly: {ball:'⭐', decorations:['🇺🇸','🎆','⭐','🎇']}
+  };
+  const ornament = seasonal[siteTheme] || seasonal.default;
+  const ball = document.getElementById('themeBall');
+  if (ball) ball.textContent = ornament.ball;
+  const decor = document.getElementById('holidayDecor');
+  if (decor) {
+    decor.replaceChildren();
+    ornament.decorations.forEach((emoji, index) => {
+      const span = document.createElement('span');
+      span.className = 'holiday-ornament ornament-' + (index + 1);
+      span.textContent = emoji;
+      decor.append(span);
+    });
+  }
   const option = $('siteTheme');
   if (option && document.activeElement !== option) option.value = siteTheme;
   const meta = document.querySelector('meta[name="theme-color"]');

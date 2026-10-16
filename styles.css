@@ -102,3 +102,33 @@ input,textarea,select {background:var(--input);border-color:var(--border)}
 :root[data-theme] .roster-chip, :root[data-theme] .next .roster-chip {background:var(--chip-bg);border-color:var(--chip-border);color:var(--text)}
 :root[data-theme] .primary {color:var(--accent-ink)}
 :root[data-theme] input, :root[data-theme] select {background:var(--input);border-color:var(--border)}
+
+/* Seasonal easter eggs: decorative only, never cover controls. */
+.topbar{position:relative;isolation:isolate;overflow:hidden}
+.topbar>div:first-child,.topbar>button{position:relative;z-index:2}
+.theme-ball{display:inline-block;transform-origin:50% 65%;animation:ball-wiggle 4s ease-in-out infinite}
+.holiday-decor{pointer-events:none;position:absolute;inset:0;z-index:1;overflow:hidden}
+.holiday-ornament{position:absolute;display:inline-block;font-size:clamp(19px,2.7vw,34px);opacity:.72;filter:drop-shadow(0 2px 4px #0005);animation:holiday-float 5s ease-in-out infinite}
+.ornament-1{top:5px;right:6%;transform:rotate(-12deg)}
+.ornament-2{top:40%;right:18%;animation-delay:-1s}
+.ornament-3{bottom:8px;right:3%;animation-delay:-2s}
+.ornament-4{bottom:5px;right:29%;animation-delay:-3s}
+:root[data-theme="default"] .theme-ball{animation:none}
+:root[data-theme="halloween"] .theme-ball{filter:drop-shadow(0 0 7px #ff9e42)}
+:root[data-theme="halloween"] .topbar::after{content:'🕸️';position:absolute;right:-8px;top:-25px;font-size:100px;opacity:.32;pointer-events:none;transform:rotate(18deg)}
+:root[data-theme="christmas"] .topbar::after{content:'❄  ❅  ❄  ❅';position:absolute;bottom:5px;left:2%;letter-spacing:34px;color:#e9fbff88;pointer-events:none}
+:root[data-theme="thanksgiving"] .topbar::after{content:'🍂';position:absolute;right:1%;bottom:-20px;font-size:90px;opacity:.26;pointer-events:none}
+:root[data-theme="valentines"] .topbar::after{content:'♡   ♡   ♡';position:absolute;right:0;bottom:4px;color:#ff9dbc80;font-size:42px;pointer-events:none}
+:root[data-theme="stpatricks"] .topbar::after{content:'☘';position:absolute;right:5%;bottom:-38px;color:#a5f3b2;font-size:100px;opacity:.18;pointer-events:none}
+:root[data-theme="fourthofjuly"] .topbar::after{content:'✦ ✶ ✦ ✶ ✦';position:absolute;right:4%;bottom:0;color:#e9f2ff8a;font-size:30px;pointer-events:none}
+:root:not([data-theme="default"]) .single-queue .team-row.next{box-shadow:0 0 0 1px var(--accent),0 0 25px -13px var(--accent)}
+:root[data-theme="halloween"] .single-queue .team-row.next::before{content:'🎃 ';font-size:1.1rem}
+:root[data-theme="christmas"] .single-queue .team-row.next::before{content:'🎁 ';font-size:1.1rem}
+:root[data-theme="thanksgiving"] .single-queue .team-row.next::before{content:'🍁 ';font-size:1.1rem}
+:root[data-theme="valentines"] .single-queue .team-row.next::before{content:'💖 ';font-size:1.1rem}
+:root[data-theme="stpatricks"] .single-queue .team-row.next::before{content:'🍀 ';font-size:1.1rem}
+:root[data-theme="fourthofjuly"] .single-queue .team-row.next::before{content:'⭐ ';font-size:1.1rem}
+@keyframes holiday-float{0%,100%{translate:0 0}50%{translate:0 -7px}}
+@keyframes ball-wiggle{0%,88%,100%{rotate:0deg}93%{rotate:-12deg}97%{rotate:10deg}}
+@media(max-width:600px){.holiday-ornament{opacity:.35}.ornament-2,.ornament-4{display:none}.topbar::after{opacity:.12!important}}
+@media(prefers-reduced-motion:reduce){.theme-ball,.holiday-ornament{animation:none!important}}
