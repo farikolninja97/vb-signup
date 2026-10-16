@@ -15,6 +15,17 @@ const configured = SUPABASE_URL.startsWith('https://') &&
 const db = configured ? createClient(SUPABASE_URL,SUPABASE_ANON_KEY) : null;
 
 let courts = [], teams = [], players = [], completed = [], maxTeamSize = 6;
+const THEME_NAMES = ['default','halloween','christmas','thanksgiving','valentines','stpatricks','fourthofjuly'];
+let siteTheme = 'default';
+function applyTheme(name) {
+  siteTheme = THEME_NAMES.includes(name) ? name : 'default';
+  document.documentElement.dataset.theme = siteTheme;
+  const option = $('siteTheme');
+  if (option && document.activeElement !== option) option.value = siteTheme;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#101827';
+}
+applyTheme('default');
 let admin = false, loading = false, saving = false, publicRotating = false;
 let latestRead = 0;
 const FOLLOW_KEY = 'vb-follow-team-v1';
@@ -265,13 +276,14 @@ async function load(forceAdminRender=false) {
       db.from('courts').select('*').order('sort_order'),
       db.from('teams').select('*').order('queue_order'),
       db.from('players').select('*').order('created_at'),
-      db.from('queue_settings').select('max_team_size').eq('id',true).single(),
+      db.from('queue_settings').select('max_team_size,site_theme').eq('id',true).single(),
       db.from('completed_teams').select('id,team_name,roster,completed_at').order('id',{ascending:false}).limit(200)
     ]);
     for (const result of results) if (result.error) throw result.error;
     if (readVersion !== latestRead) return;
     [courts,teams,players] = results.slice(0,3).map(result => result.data);
     maxTeamSize = results[3].data.max_team_size;
+    applyTheme(results[3].data.site_theme);
     completed = results[4].data;
     renderPublic();
     if (forceAdminRender) document.activeElement?.blur?.();
@@ -468,6 +480,12 @@ $('logoutBtn').addEventListener('click',async() => {
   await checkAdmin();
 });
 
+$('saveSiteTheme').addEventListener('click',async() => {
+  const selected = $('siteTheme').value;
+  if (!THEME_NAMES.includes(selected)) return;
+  await runAdmin(() => checkedMutation(db.from('queue_settings')
+    .update({site_theme:selected}).eq('id',true)), 'Website theme updated for everyone');
+});
 $('saveMaxTeamSize').addEventListener('click',async() => {
   const number = Number($('maxTeamSize').value);
   if (!Number.isInteger(number) || number<1 || number>50) {
