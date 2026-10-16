@@ -37,7 +37,8 @@ function explain(error) {
   if (error?.code === '42501' || /permission denied/i.test(detail)) {
     return 'Permission denied. Run fix_existing_database.sql in Supabase SQL Editor, then sign out and back in. Details: ' + detail;
   }
-  if (error?.code === '23505') return 'That name is already used. Choose a different name. ' + detail;
+  if (error?.code === '23505' && /players_name_unique_normalized|duplicate player name/i.test(detail)) return 'That player name is already registered. Please use a different name.';
+  if (error?.code === '23505') return 'A record with that name already exists. ' + detail;
   if (error?.code === 'PGRST116') return 'The operation did not match a record. Refresh the page and try again.';
   return detail;
 }
@@ -213,9 +214,39 @@ async function rpc(name,args) {
   const result = await db.rpc(name,args);
   if (result.error) throw result.error;
 }
+// Friendly immediate feedback; the matching Supabase trigger is authoritative.
+const blockedWords = [
+  'fuck','fucker','fucking','motherfucker','shit','shitty','bullshit',
+  'bitch','bitches','asshole','bastard','cunt','dick','dickhead',
+  'pussy','cock','twat','whore','slut','retard','retarded',
+  'nigger','nigga','faggot','fag','kike','spic'
+];
+const blockedSet = new Set(blockedWords);
+function normalizeName(text) {
+  return text.toLowerCase().replace(/[@4]/g,'a').replace(/3/g,'e')
+    .replace(/[!1|]/g,'i').replace(/0/g,'o').replace(/[$5]/g,'s')
+    .replace(/7/g,'t');
+}
+function containsProfanity(value) {
+  const normalized = normalizeName(value);
+  const tokens = normalized.match(/[a-z]+/g) || [];
+  if (tokens.some(token => blockedSet.has(token))) return true;
+  // Catch deliberate separators such as f.u.c.k; avoid scanning inside ordinary names.
+  return blockedSet.has(tokens.join('')) && tokens.length > 1;
+}
+function normalizedPlayerName(name) {
+  return name.trim().replace(/\s+/g,' ').toLowerCase();
+}
+function ensureUniquePlayerName(name, excludingId=null) {
+  const normalized = normalizedPlayerName(name);
+  if (players.some(player => player.id !== excludingId && normalizedPlayerName(player.name) === normalized)) {
+    throw new Error('That player name is already signed up. Please use a different name.');
+  }
+}
 function validName(value,max=60) {
   const name = (value || '').trim();
   if (!name || name.length>max) throw new Error(`Enter a name between 1 and ${max} characters.`);
+  if (containsProfanity(name)) throw new Error('Please choose a name without profanity or offensive slurs.');
   return name;
 }
 
@@ -223,7 +254,9 @@ $('signupForm').addEventListener('submit',async event => {
   event.preventDefault();
   if (!db) return;
   const submit = $('signupForm').querySelector('button[type="submit"]');
-  const playerName = $('playerName').value.trim();
+  let playerName;
+  try { playerName = validName($('playerName').value); ensureUniquePlayerName(playerName); }
+  catch (error) { message('signupStatus',error.message,true); return; }
   const selectedTeam = $('teamChoice').value;
   const playerPosition = $('playerPosition').value;
   if (!playerName || !selectedTeam || !playerPosition) {
@@ -394,7 +427,7 @@ $('adminSection').addEventListener('click',async event => {
   if (action==='renamePlayer' && player) {
     const name = prompt('Player name',player.name);
     if (name===null) return;
-    try {await runAdmin(() => checkedMutation(db.from('players').update({name:validName(name)}).eq('id',id)),'Player renamed');}
+    try {await runAdmin(() => checkedMutation(db.from('players').update({name:(()=>{const n=validName(name);ensureUniquePlayerName(n,id);return n;})()}).eq('id',id)),'Player renamed');}
     catch(e){message('adminStatus',e.message,true);}
     return;
   }
