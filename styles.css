@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=DM+Sans:wght@400;500;600;700;800&display=swap');
 :root{color-scheme:dark;--bg:#0c1220;--panel:#151f32;--panel2:#1c2a40;--border:#32445d;--text:#f3f7ff;--muted:#a8b8d0;--accent:#4ccab6;--blue:#75aaff;--danger:#ff8c96}*{box-sizing:border-box}body{margin:0;background:linear-gradient(155deg,#10223b 0%,var(--bg) 45%);font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--text)}button,input,textarea,select{font:inherit}button{cursor:pointer;border-radius:10px;padding:11px 15px;font-weight:700;border:1px solid transparent}button:disabled{opacity:.45;cursor:not-allowed}.primary{background:var(--accent);color:#09251f}.secondary{background:#24354e;border-color:#436082;color:var(--text)}.danger{background:#582b3b;color:#ffe6e9;border-color:#a75669}.small{padding:8px 10px;font-size:.85rem}.topbar{padding:22px max(16px,calc((100vw - 1120px)/2));display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:1px solid var(--border)}h1{margin:4px 0 2px;font-size:clamp(1.75rem,4vw,2.6rem)}h2{margin:0;font-size:1.25rem}h3{margin:18px 0 8px}.eyebrow{color:var(--accent);font-weight:800;font-size:.72rem;letter-spacing:.13em}.muted,.hint{color:var(--muted)}.hint{font-size:.84rem;margin:5px 0}.topbar p{margin:0}main{max-width:1160px;padding:22px 16px 40px;margin:auto}.panel,.court-card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:20px;box-shadow:0 8px 22px #0002}.panel-heading,.section-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:15px}.section-title{margin:25px 0 14px}.tag{font-size:.77rem;color:#bdf1e8;background:#1c4e4c;border-radius:100px;padding:5px 10px;font-weight:800}label{display:block;font-size:.9rem;font-weight:650;margin:0 0 13px}input,textarea,select{display:block;width:100%;background:#0e192b;border:1px solid #4a607b;border-radius:9px;color:var(--text);padding:12px;margin-top:5px;min-width:0}input:focus,textarea:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}.form-row{display:flex;align-items:end;gap:12px;flex-wrap:wrap}.form-row label{flex:1;min-width:170px}.form-row button{margin-bottom:13px}.message{min-height:18px;color:var(--accent);font-size:.9rem}.message.error{color:var(--danger)}.court-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,335px),1fr));gap:16px}.court-card{margin:0}.court-top{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:13px}.court-top h3{margin:0}.subtitle{color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;font-weight:800;margin:12px 0 7px}.pair,.team-row{padding:11px 12px;border-radius:9px;background:var(--panel2);margin-bottom:7px;border:1px solid #354b68}.team-row{display:flex;justify-content:space-between;align-items:center;gap:8px}.team-row.next{border-color:var(--accent);background:#153c3c}.team-name{font-weight:800;overflow-wrap:anywhere}.players{font-size:.78rem;color:var(--muted);white-space:pre-line;overflow-wrap:anywhere}.position{font-weight:800;color:var(--accent);font-size:.8rem;flex-shrink:0}.empty{padding:12px;border:1px dashed #506078;border-radius:8px;color:var(--muted);font-size:.88rem}.notice{padding:16px;margin-bottom:20px;background:#3b3021;border:1px solid #937046;border-radius:12px}.hidden{display:none!important}.admin{border-color:#5a7c95}.admin-teams{display:grid;gap:10px}.admin-team{padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--panel2)}.admin-team h4{margin:0 0 9px;overflow-wrap:anywhere}.actions{display:flex;gap:7px;flex-wrap:wrap}.actions button,.actions select{font-size:.82rem;padding:8px}.actions select{width:auto;flex:1;min-width:115px;margin:0}.court-admin-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)}footer{text-align:center;color:var(--muted);padding:25px 12px;font-size:.83rem}@media(max-width:460px){.topbar{padding:16px}.topbar .small{white-space:nowrap}.court-grid{display:block}.court-card{margin-bottom:14px}.panel{padding:14px}.form-row{display:block}.form-row button{width:100%;margin-top:0}}
 .next-label{font-size:.69rem;letter-spacing:.08em;color:#071f1a;background:#62edbb;padding:4px 6px;border-radius:5px;vertical-align:2px;margin-right:5px}.team-row.next{border:2px solid #62edbb;background:#0f423a;box-shadow:0 0 0 2px #62edbb20}.directory{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,255px),1fr));gap:10px}.directory-card{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px}.directory-card .players{margin-top:6px}.directory-card strong{overflow-wrap:anywhere}
 
@@ -165,3 +166,170 @@ input,textarea,select {background:var(--input);border-color:var(--border)}
 .my-signup-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--border)}
 .my-signup-row:last-child{border-bottom:0}.my-signup-row button{flex:none;min-height:42px}
 @media(max-width:420px){.my-signup-row{flex-wrap:wrap}.my-signup-row button{width:100%}}
+
+
+/* V1.04 — COS Volleyball official-site-inspired theme.
+   Reference: https://cosvolleyball.github.io/ (public visual assets and CSS palette).
+   Scoped to the theme only; all older themes remain unchanged. */
+
+/* Official logo only appears on this theme. */
+.cos-brand{display:none}
+:root[data-theme="cosvolleyball"]{
+  color-scheme:light;
+  --bg:#f3f8fa;--bg-glow:#e7f1f5;--panel:#ffffff;--panel2:#eef5f8;
+  --border:#dce8ee;--text:#092945;--muted:#566d7b;
+  --accent:#008b95;--accent-ink:#ffffff;--blue:#007f9d;--danger:#b84053;
+  --input:#ffffff;--secondary-bg:#eaf4f7;--secondary-border:#bed3df;
+  --next-bg:#e8f8ef;--next-border:#45ce5e;--next-text:#0b695a;
+  --chip-bg:#f1f6f9;--chip-border:#d0e2e9;--tag-bg:#e7f8fa;
+  --tag-text:#007786;--alert-panel:#ffffff;
+}
+:root[data-theme="cosvolleyball"] body{
+  background:#f3f8fa;color:var(--text);
+  font-family:'DM Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+:root[data-theme="cosvolleyball"] .topbar{
+  background:#072b44;
+  background-image:linear-gradient(90deg,rgba(4,29,46,.99) 0%,rgba(4,29,46,.94) 36%,rgba(4,29,46,.58) 74%,rgba(4,29,46,.30) 100%),url('https://cosvolleyball.github.io/court-hero.webp');
+  background-position:center,right center;
+  background-repeat:no-repeat;
+  background-size:cover,auto 100%;
+  border-bottom:4px solid #19d4e3;color:#fff;
+  min-height:265px;align-items:flex-start;padding-top:24px;padding-bottom:27px;
+}
+:root[data-theme="cosvolleyball"] .topbar .cos-brand{
+  display:inline-flex;align-items:center;gap:12px;text-decoration:none;
+  color:#fff;margin:0 0 20px;max-width:max-content;
+}
+:root[data-theme="cosvolleyball"] .cos-brand img{
+  width:48px;height:48px;object-fit:contain;flex:none;
+  filter:drop-shadow(0 4px 12px #0004);
+}
+:root[data-theme="cosvolleyball"] .cos-brand span{
+  display:block;font-family:'Barlow Condensed','Arial Narrow',Impact,sans-serif;
+  font-size:23px;line-height:1.0;font-weight:800;letter-spacing:.02em;
+}
+:root[data-theme="cosvolleyball"] .cos-brand strong{display:block;color:#19d4e3}
+:root[data-theme="cosvolleyball"] .cos-brand svg{color:#19d4e3;flex:none}
+:root[data-theme="cosvolleyball"] .cos-brand:hover strong{text-decoration:underline}
+:root[data-theme="cosvolleyball"] .eyebrow{color:#19d4e3}
+:root[data-theme="cosvolleyball"] .theme-ball{animation:none}
+:root[data-theme="cosvolleyball"] .topbar h1{
+  color:#fff;font-family:'Barlow Condensed','Arial Narrow',Impact,sans-serif;
+  font-size:clamp(2.5rem,5vw,4.1rem);line-height:.99;font-weight:800;
+  letter-spacing:.006em;text-shadow:0 2px 9px rgba(0,0,0,.25);
+}
+:root[data-theme="cosvolleyball"] .topbar #updateLabel{
+  max-width:82ch;color:#e3f3f8;font-size:.87rem;line-height:1.65;
+}
+:root[data-theme="cosvolleyball"] .topbar #updateLabel strong{color:#fff}
+:root[data-theme="cosvolleyball"] #adminToggle{
+  color:#20dce7;background:rgba(7,43,68,.7);border:2px solid #19d4e3;
+  border-radius:8px;white-space:nowrap;
+}
+:root[data-theme="cosvolleyball"] #adminToggle:hover{background:#0f4a5e;color:#fff}
+:root[data-theme="cosvolleyball"] main{background:#f3f8fa}
+:root[data-theme="cosvolleyball"] .panel,
+:root[data-theme="cosvolleyball"] .court-card{
+  background:#fff;border:1px solid #dce8ee;
+  box-shadow:0 6px 18px rgba(19,56,80,.055);border-radius:14px;
+}
+:root[data-theme="cosvolleyball"] .panel h2,
+:root[data-theme="cosvolleyball"] .section-title h2,
+:root[data-theme="cosvolleyball"] .court-top h3{
+  color:#092945;font-family:'Barlow Condensed','Arial Narrow',Impact,sans-serif;
+  font-weight:800;letter-spacing:.005em;font-size:clamp(1.7rem,3.4vw,2.2rem);
+}
+:root[data-theme="cosvolleyball"] .panel h3{
+  color:#072b44;font-family:'Barlow Condensed','Arial Narrow',Impact,sans-serif;
+  font-size:1.55rem;
+}
+:root[data-theme="cosvolleyball"] .tag{background:#e9f7f5;color:#007f8a}
+:root[data-theme="cosvolleyball"] .hint,
+:root[data-theme="cosvolleyball"] .queue-explainer,
+:root[data-theme="cosvolleyball"] .muted{color:#566d7b}
+:root[data-theme="cosvolleyball"] .primary{
+  background:linear-gradient(110deg,#008b91,#007f8b);color:#fff;
+  border-radius:8px;border-color:#008b91;
+}
+:root[data-theme="cosvolleyball"] .secondary{
+  background:#ecf4f7;border:1px solid #bed3df;color:#204963;
+  border-radius:8px;
+}
+:root[data-theme="cosvolleyball"] .primary:hover,
+:root[data-theme="cosvolleyball"] .secondary:hover{filter:brightness(1.055)}
+:root[data-theme="cosvolleyball"] .danger{background:#fff0f2;border-color:#f1b9c0;color:#922c41}
+:root[data-theme="cosvolleyball"] input,
+:root[data-theme="cosvolleyball"] select,
+:root[data-theme="cosvolleyball"] textarea{
+  background:#fff;border:1px solid #bed3df;color:#092945;
+  border-radius:8px;
+}
+:root[data-theme="cosvolleyball"] input:focus,
+:root[data-theme="cosvolleyball"] select:focus,
+:root[data-theme="cosvolleyball"] textarea:focus{outline:2px solid #19b5bf;outline-offset:1px}
+:root[data-theme="cosvolleyball"] .single-queue .team-row,
+:root[data-theme="cosvolleyball"] .directory-card,
+:root[data-theme="cosvolleyball"] .admin-team{
+  background:#f3f8fa;border-color:#dce8ee;border-radius:12px;
+}
+:root[data-theme="cosvolleyball"] .single-queue .team-row.next{
+  background:linear-gradient(115deg,#e7f8ed,#edf9f9);
+  border:2px solid #43cd62;box-shadow:0 8px 23px rgba(21,112,93,.11);
+}
+:root[data-theme="cosvolleyball"] .single-queue .team-row.next .queue-rank{
+  background:#008b95;color:white;
+}
+:root[data-theme="cosvolleyball"] .single-queue .team-row.next .team-name{color:#072b44}
+:root[data-theme="cosvolleyball"] .next-callout,
+:root[data-theme="cosvolleyball"] .single-queue .team-row.next .next-callout{color:#007f8a}
+:root[data-theme="cosvolleyball"] .next-label{background:#008b95;color:white}
+:root[data-theme="cosvolleyball"] .queue-rank{background:#deedf1;color:#072b44}
+:root[data-theme="cosvolleyball"] .team-capacity{background:#e2eff3;color:#204963}
+:root[data-theme="cosvolleyball"] .roster-chip,
+:root[data-theme="cosvolleyball"] .next .roster-chip{
+  background:white;border-color:#c9e2e4;color:#092945;
+}
+:root[data-theme="cosvolleyball"] .roster-chip .hint{color:#566d7b}
+:root[data-theme="cosvolleyball"] .roster-empty{color:#566d7b}
+:root[data-theme="cosvolleyball"] .signup-section{
+  border:1px solid #c1dce1;border-top:4px solid #008b95;
+}
+:root[data-theme="cosvolleyball"] .sub-volunteer{
+  background:#eef9f7;border:1px solid #7cc9cb;color:#092945;
+}
+:root[data-theme="cosvolleyball"] .sub-toggle small{color:#566d7b}
+:root[data-theme="cosvolleyball"] .sub-tag{color:#007f8a;border-color:#008b95}
+:root[data-theme="cosvolleyball"] .site-footer{
+  background:#072b44;color:#d2e7ec;border-top:3px solid #19d4e3;
+}
+:root[data-theme="cosvolleyball"] .site-version,
+:root[data-theme="cosvolleyball"] .site-version strong{color:#fff}
+:root[data-theme="cosvolleyball"] .alert-dialog{
+  background:#fff;color:#092945;border-color:#43cd62;
+}
+:root[data-theme="cosvolleyball"] .connection-pill[data-state="live"]{
+  background:#e9f7f5;border-color:#7bd3c8;color:#00776c;
+}
+:root[data-theme="cosvolleyball"] .connection-pill[data-state="fallback"]{
+  background:#fff7e9;border-color:#e3c486;color:#865d20;
+}
+:root[data-theme="cosvolleyball"] .connection-pill[data-state="offline"]{
+  background:#fff0f1;border-color:#e8a0a0;color:#9b3333;
+}
+:root[data-theme="cosvolleyball"] .theme-preview{background:#f3f8fa;padding:10px;border-radius:8px}
+:root[data-theme="cosvolleyball"] .theme-swatch{border-color:#c2dbe3}
+:root[data-theme="cosvolleyball"] .holiday-decor{display:none}
+:root[data-theme="cosvolleyball"] .theme-ball{filter:none}
+@media(max-width:650px){
+ :root[data-theme="cosvolleyball"] .topbar{
+   background-size:cover,auto 100%;background-position:center,right center;
+   min-height:0;padding:18px 16px 22px;
+ }
+ :root[data-theme="cosvolleyball"] .topbar .cos-brand{gap:9px;margin-bottom:14px}
+ :root[data-theme="cosvolleyball"] .cos-brand img{width:39px;height:39px}
+ :root[data-theme="cosvolleyball"] .cos-brand span{font-size:19px}
+ :root[data-theme="cosvolleyball"] .topbar h1{font-size:clamp(2.1rem,8vw,3.1rem)}
+ :root[data-theme="cosvolleyball"] .topbar #updateLabel{font-size:.81rem}
+ :root[data-theme="cosvolleyball"] #adminToggle{margin-left:0}
+}

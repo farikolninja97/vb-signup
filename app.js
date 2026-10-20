@@ -36,7 +36,7 @@ function privateToken() {
 }
 let subDraft = {open:false,name:'',position:'Flexible / Any',teamId:null};
 let selfLeaving = false;
-const THEME_NAMES = ['default','halloween','christmas','thanksgiving','valentines','stpatricks','fourthofjuly'];
+const THEME_NAMES = ['default','halloween','christmas','thanksgiving','valentines','stpatricks','fourthofjuly','cosvolleyball'];
 let siteTheme = 'default';
 let themePreviewPending = false;
 let savedSiteTheme = 'default';
@@ -50,7 +50,8 @@ function applyTheme(name) {
     thanksgiving: {ball:'🍁', decorations:['🍂','🦃','🌾','🍁']},
     valentines: {ball:'💗', decorations:['💕','💘','🌹','💞']},
     stpatricks: {ball:'☘️', decorations:['🍀','🌈','🪙','☘️']},
-    fourthofjuly: {ball:'⭐', decorations:['🇺🇸','🎆','⭐','🎇']}
+    fourthofjuly: {ball:'⭐', decorations:['🇺🇸','🎆','⭐','🎇']},
+    cosvolleyball: {ball:'🏐', decorations:[]}
   };
   const ornament = seasonal[siteTheme] || seasonal.default;
   const ball = document.getElementById('themeBall');
@@ -67,6 +68,32 @@ function applyTheme(name) {
   }
   const option = $('siteTheme');
   if (option && document.activeElement !== option) option.value = siteTheme;
+  // The COS theme shares the official site's visual assets without changing any other theme.
+  let brandIcon = document.querySelector('link[data-cos-brand-icon]');
+  if (siteTheme === 'cosvolleyball') {
+    if (!brandIcon) {
+      brandIcon = document.createElement('link');
+      brandIcon.rel = 'icon';
+      brandIcon.setAttribute('data-cos-brand-icon', '');
+      document.head.appendChild(brandIcon);
+    }
+    brandIcon.type = 'image/png';
+    brandIcon.href = 'https://cosvolleyball.github.io/favicon-32.png';
+  } else if (brandIcon) {
+    brandIcon.remove();
+  }
+  let appleIcon = document.querySelector('link[data-cos-apple-icon]');
+  if (siteTheme === 'cosvolleyball') {
+    if (!appleIcon) {
+      appleIcon = document.createElement('link');
+      appleIcon.rel = 'apple-touch-icon';
+      appleIcon.setAttribute('data-cos-apple-icon', '');
+      document.head.appendChild(appleIcon);
+    }
+    appleIcon.href = 'https://cosvolleyball.github.io/apple-touch-icon.png';
+  } else if (appleIcon) {
+    appleIcon.remove();
+  }
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#101827';
 }
