@@ -42,8 +42,26 @@ function showActions() {
   $('kioskPrevious').disabled = busy || !db || !hasHistory;
   $('kioskNext').disabled = busy || !db || waiting.length === 0;
 }
+function renderFollowingTeams() {
+  const upcoming = waiting.slice(1, 3);
+  const list = $('kioskFollowingTeams');
+  if (!upcoming.length) {
+    list.innerHTML = '<p class="kiosk-next-empty">No teams waiting behind this one.</p>';
+    return;
+  }
+  list.innerHTML = upcoming.map((team, index) => {
+    const players = team.members.length
+      ? `<ul class="kiosk-next-players">${team.members.map(person => `<li title="${escapeHtml(person.name)}"><span>${escapeHtml(person.name)}</span>${person.isSub ? '<small class="kiosk-next-sub">SUB</small>' : ''}</li>`).join('')}</ul>`
+      : '<div class="kiosk-next-empty-roster">No players signed up yet</div>';
+    return `<section class="kiosk-next-team" aria-label="${index === 0 ? 'Second' : 'Third'} team in line">
+      <div class="kiosk-next-team-heading"><strong>${escapeHtml(team.name)}</strong><span>${team.members.length}/${maxSize}</span></div>
+      ${players}
+    </section>`;
+  }).join('');
+}
 function draw() {
   const first = waiting[0];
+  renderFollowingTeams();
   if (!first) {
     $('kioskTeamName').textContent = 'No teams waiting';
     $('kioskPlayerCount').textContent = '0 players';

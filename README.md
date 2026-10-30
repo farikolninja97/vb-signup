@@ -1,34 +1,34 @@
-# Intermediate Court Queue — V1.06
+# Intermediate Court Queue — V1.07
 
-## Changed files — upload these to your GitHub Pages repository root
+## What changed
 
-- `index.html` — branded top link now goes to https://farikolninja97.github.io/vb-signup/, adds **Kiosk Mode** link, footer updated to V1.06.
-- `styles.css` — new home/kiosk header links for all themes, with mobile styling.
-- `kiosk.html` — new, standalone kiosk-only page; shows just the first team, its roster, and large public Next/Previous actions, with discreet Home and fullscreen options.
-- `kiosk.css` — screen-filling responsive kiosk layout for tablets, landscape displays, phones, and holiday palettes.
-- `kiosk.js` — reads the live queue and members, calls existing `advance_global_queue` / `undo_global_queue` functions, listens to the same Supabase broadcast topic as the main app, uses a 60-second fallback and reconnect refresh.
+Kiosk Mode now keeps the **first team and its roster large** and adds a **compact square in the lower-right** displaying the **next two waiting teams and all their player names**. This includes SUB labels for substitutes. If there are fewer than two following teams, only the available teams appear; with none, a message is shown. The preview is refreshed along with the main roster by the existing Realtime channel and 60-second fallback.
 
-**DO NOT overwrite your existing `app.js` or `config.js`.** No database migrations or Supabase SQL changes are required if your existing public Next/Previous and Realtime broadcasts already work.
+On landscape tablets and monitors, the small square sits at the bottom-right of the first-team card. On narrow phone screens it shifts beneath the primary roster and stays right-aligned so it never covers player names or the Next / Previous buttons.
+
+The site footer and cache references advance to **V1.07** on both the normal homepage and the kiosk.
+
+## Upload only these changed files to the repository root
+
+- `index.html` — version footer and cache references for V1.07.
+- `kiosk.html` — new upcoming-teams square and V1.07 footer/cache references.
+- `kiosk.css` — layout and styling for the compact upcoming-teams square.
+- `kiosk.js` — renders the next two teams with player names from the same live Supabase queue data.
+
+**Do not overwrite your existing `config.js`, `app.js`, or `styles.css`.** Those files have no changes in this update.
 
 ## Installation
 
-1. Back up your GitHub repository files if desired.
-2. Upload the four website files (`index.html`, `styles.css`, `kiosk.html`, `kiosk.css`) and `kiosk.js` into the repository root, next to your existing `app.js` and `config.js`.
-3. Wait for GitHub Pages deployment to finish, then refresh your site. Check for **Current Version: V1.06** at the bottom.
-4. On your homepage, click **Kiosk Mode** (near Admin Login), or visit `https://farikolninja97.github.io/vb-signup/kiosk.html`.
-5. On a compatible browser, tap **Fullscreen** to hide browser chrome. For iPhones or browsers that don't support this fullscreen API, the button is hidden; use the browser's display mode or add the website to your Home Screen.
-6. Verify the displayed team and player names. Try Next, then Previous, on a test team. Both buttons are public, just like your main page.
+1. Open https://github.com/farikolninja97/vb-signup and replace the four changed files listed above, keeping them in the repository root (next to `config.js`).
+2. Wait for the GitHub Pages deployment to finish in GitHub Actions.
+3. Refresh https://farikolninja97.github.io/vb-signup/kiosk.html and check the footer displays **V1.07**.
+4. Confirm that Team 1 remains prominent and the small bottom-right panel shows Team 2 and Team 3 with the players currently registered. Press **Next Team** then **Previous Team** to verify it updates/restores correctly.
 
-## Behavioral details
+No Supabase SQL changes are required. The existing queue data, History, admin controls, themes and public Next/Previous functions remain unchanged.
 
-- Kiosk Mode has **no signup form, directory, history tab, or admin panel**. It deliberately bypasses the first-visit rules popup because it's a display and queue-control page, not a signup entry page.
-- The homepage retains its V1.05 acknowledgment popup, signups, themes, alerts, and all admin functionality.
-- Next calls `advance_global_queue` and Previous calls `undo_global_queue`. The existing Supabase routines handle archiving/restoring rosters and keeping history. The Previous button is disabled if history is empty.
-- Queue and theme updates arrive from your current Supabase Broadcast channel. A 60-second refresh and foreground/reconnection refresh protect against missed events.
-- Both pages display **V1.06** at the bottom. Your configured Supabase URL/key stay in your existing `config.js`, which is intentionally absent from this ZIP.
+## Verification performed
 
-## Testing and scope
-
-- JavaScript syntax checked (`node --check`).
-- Browser smoke tests with a simulated Supabase database passed at 1280x720, 800x600, and 390x844. Tested first-team roster, six preferred positions, Next, Previous, and Halloween theme rendering.
-- The app has **not** been deployed to your GitHub repository or tested against your live Supabase project. This ZIP contains the files you need to publish.
+- JavaScript syntax check passed.
+- Browser tests using simulated Supabase data passed at 1280×720, 1024×768, 800×600, and 390×844 for two following teams, member names, substitute labels, Next/Previous, the Halloween theme, and V1.07 footer.
+- The layout is responsive; on a narrow phone the panel may require scrolling, but it does not obscure the main roster or action buttons.
+- This update was not deployed to your GitHub repository and has not been tested against your live Supabase data.

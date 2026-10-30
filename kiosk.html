@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#101827">
-  <meta name="description" content="Fullscreen-ready Intermediate Court Queue kiosk showing the next team, roster, and public Next/Previous controls.">
+  <meta name="description" content="Fullscreen-ready Intermediate Court Queue kiosk showing the first team, the next two teams and their players, and public Next/Previous controls.">
   <title>Intermediate Court Queue · Kiosk</title>
-  <link rel="stylesheet" href="styles.css?v=V1.06">
-  <link rel="stylesheet" href="kiosk.css?v=V1.06">
+  <link rel="stylesheet" href="styles.css?v=V1.07">
+  <link rel="stylesheet" href="kiosk.css?v=V1.07">
 </head>
 <body class="kiosk-page">
   <div class="kiosk-frame">
@@ -33,9 +33,19 @@
           <h2 id="kioskTeamName">Loading queue…</h2>
           <span class="kiosk-count" id="kioskPlayerCount" aria-live="polite">—</span>
         </div>
-        <div class="kiosk-members-title">PLAYERS &amp; PREFERRED POSITIONS</div>
-        <div id="kioskRoster" class="kiosk-roster" aria-live="polite" aria-atomic="true">
-          <div class="kiosk-empty">Connecting to the live team queue…</div>
+        <div class="kiosk-team-content">
+          <div class="kiosk-current-roster">
+            <div class="kiosk-members-title">PLAYERS &amp; PREFERRED POSITIONS</div>
+            <div id="kioskRoster" class="kiosk-roster" aria-live="polite" aria-atomic="true">
+              <div class="kiosk-empty">Connecting to the live team queue…</div>
+            </div>
+          </div>
+          <aside class="kiosk-next-panel" aria-label="Next two teams waiting">
+            <div class="kiosk-next-heading"><span>COMING UP</span><span class="kiosk-next-count">NEXT 2</span></div>
+            <div id="kioskFollowingTeams" class="kiosk-next-teams" aria-live="polite" aria-atomic="true">
+              <p class="kiosk-next-empty">Loading following teams…</p>
+            </div>
+          </aside>
         </div>
       </section>
       <p id="kioskStatus" class="kiosk-status" role="status" aria-live="polite"></p>
@@ -45,8 +55,8 @@
       <button type="button" id="kioskPrevious" class="kiosk-action kiosk-action-previous" disabled><span class="kiosk-action-icon" aria-hidden="true">↶</span> Previous Team</button>
       <button type="button" id="kioskNext" class="kiosk-action kiosk-action-next" disabled>Next Team <span class="kiosk-action-icon" aria-hidden="true">▶</span></button>
     </section>
-    <footer class="kiosk-footer"><span id="kioskUpdated">Waiting for latest queue</span><span>Current Version: <strong>V1.06</strong></span></footer>
+    <footer class="kiosk-footer"><span id="kioskUpdated">Waiting for latest queue</span><span>Current Version: <strong>V1.07</strong></span></footer>
   </div>
-  <script type="module" src="kiosk.js?v=V1.06"></script>
+  <script type="module" src="kiosk.js?v=V1.07"></script>
 </body>
 </html>
