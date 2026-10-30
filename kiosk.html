@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#101827">
+  <meta name="description" content="Fullscreen-ready Intermediate Court Queue kiosk showing the next team, roster, and public Next/Previous controls.">
+  <title>Intermediate Court Queue · Kiosk</title>
+  <link rel="stylesheet" href="styles.css?v=V1.06">
+  <link rel="stylesheet" href="kiosk.css?v=V1.06">
+</head>
+<body class="kiosk-page">
+  <div class="kiosk-frame">
+    <header class="kiosk-header">
+      <div class="kiosk-brand">
+        <div class="kiosk-icon" aria-hidden="true">🏐</div>
+        <div>
+          <div class="kiosk-eyebrow">INTERMEDIATE COURT QUEUE</div>
+          <h1>Kiosk Mode</h1>
+        </div>
+      </div>
+      <div class="kiosk-utilities">
+        <span class="kiosk-connection" id="kioskConnection" role="status" aria-live="polite">◌ Connecting</span>
+        <button id="fullscreenBtn" class="kiosk-utility-btn" type="button" hidden>⛶ Fullscreen</button>
+        <a class="kiosk-utility-btn" href="https://farikolninja97.github.io/vb-signup/" aria-label="Return to signup homepage">⌂ Home</a>
+      </div>
+    </header>
+
+    <main class="kiosk-main" id="kioskMain">
+      <div class="kiosk-topline"><span class="kiosk-breathing-dot" aria-hidden="true"></span> NEXT AVAILABLE COURT <span class="kiosk-topline-tag">FIRST IN LINE</span></div>
+      <section class="kiosk-team" aria-labelledby="kioskTeamName">
+        <div class="kiosk-team-heading">
+          <h2 id="kioskTeamName">Loading queue…</h2>
+          <span class="kiosk-count" id="kioskPlayerCount" aria-live="polite">—</span>
+        </div>
+        <div class="kiosk-members-title">PLAYERS &amp; PREFERRED POSITIONS</div>
+        <div id="kioskRoster" class="kiosk-roster" aria-live="polite" aria-atomic="true">
+          <div class="kiosk-empty">Connecting to the live team queue…</div>
+        </div>
+      </section>
+      <p id="kioskStatus" class="kiosk-status" role="status" aria-live="polite"></p>
+    </main>
+
+    <section class="kiosk-actionbar" aria-label="Public queue controls">
+      <button type="button" id="kioskPrevious" class="kiosk-action kiosk-action-previous" disabled><span class="kiosk-action-icon" aria-hidden="true">↶</span> Previous Team</button>
+      <button type="button" id="kioskNext" class="kiosk-action kiosk-action-next" disabled>Next Team <span class="kiosk-action-icon" aria-hidden="true">▶</span></button>
+    </section>
+    <footer class="kiosk-footer"><span id="kioskUpdated">Waiting for latest queue</span><span>Current Version: <strong>V1.06</strong></span></footer>
+  </div>
+  <script type="module" src="kiosk.js?v=V1.06"></script>
+</body>
+</html>

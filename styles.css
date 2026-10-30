@@ -386,3 +386,13 @@ html:not(.rules-accepted),html:not(.rules-accepted) body {overflow:hidden;}
 :root[data-theme="cosvolleyball"] .rules-check-label{background:#edf6f8;color:#092945;border-color:#c3d9e4;}
 :root[data-theme="cosvolleyball"] .rules-eyebrow,
 :root[data-theme="cosvolleyball"] .rules-system-number{color:#007f8a;}
+
+/* V1.06 — Home and kiosk navigation (theme-independent). */
+.topbar-tools{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap;position:relative;z-index:3}
+.topbar-tools .kiosk-launch{display:inline-flex;align-items:center;justify-content:center;min-height:38px;text-decoration:none;white-space:nowrap}
+.topbar-tools button{min-height:38px}
+.site-home-link{display:inline-flex;align-items:center;width:max-content;margin:0 0 6px;color:var(--accent);font-size:.84rem;text-decoration:none;font-weight:800}
+.site-home-link:hover,.cos-brand:hover{text-decoration:underline}
+:root[data-theme="cosvolleyball"] .site-home-link{display:none}
+.topbar-tools .kiosk-launch{background:var(--secondary-bg,#24354e);color:var(--text);border:1px solid var(--secondary-border,#436082)}
+@media(max-width:680px){.topbar{flex-wrap:wrap}.topbar>div:first-child{width:100%}.topbar-tools{width:100%;justify-content:flex-start}.topbar-tools>*{flex:1;text-align:center}}
