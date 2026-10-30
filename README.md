@@ -1,34 +1,32 @@
-# Intermediate Court Queue — V1.07
+# Intermediate Court Queue V1.09 — Kiosk preferred-position visibility fix
 
-## What changed
+## Fix
+The kiosk previously treated a missing/null `show_player_positions` setting as permission to show positions. Now it hides them until Supabase explicitly returns `true`. A CSS guard prevents stale position text from remaining visible if settings are unavailable. An admin setting change also requests an immediate refresh through the existing Realtime channel. A small kiosk footer label shows **Positions hidden** or **Positions shown**, allowing you to verify the value the kiosk received.
 
-Kiosk Mode now keeps the **first team and its roster large** and adds a **compact square in the lower-right** displaying the **next two waiting teams and all their player names**. This includes SUB labels for substitutes. If there are fewer than two following teams, only the available teams appear; with none, a message is shown. The preview is refreshed along with the main roster by the existing Realtime channel and 60-second fallback.
+The following-team panel continues to display names and SUB badges only. No player positions are deleted from Supabase, and signup still requests the player's position.
 
-On landscape tablets and monitors, the small square sits at the bottom-right of the first-team card. On narrow phone screens it shifts beneath the primary roster and stays right-aligned so it never covers player names or the Next / Previous buttons.
+## Install
+1. Upload only the **five changed files** from `github-pages/` to the root of your GitHub repository, replacing the existing copies:
+   - `index.html`
+   - `app.js`
+   - `kiosk.html`
+   - `kiosk.js`
+   - `kiosk.css`
+2. Do not replace `config.js`, `styles.css`, or any other files.
+3. Wait for GitHub Pages to finish deploying, then refresh both `/vb-signup/` and `/vb-signup/kiosk.html` (hard refresh if needed).
+4. Verify **Current Version: V1.09** on both screens.
+5. Sign in to Admin and uncheck **Show player preferred positions**. Kiosk should show **Positions hidden** in its footer; names and SUB badges remain visible, but no positions are displayed in the primary roster.
+6. Check the box again to verify kiosk positions return.
 
-The site footer and cache references advance to **V1.07** on both the normal homepage and the kiosk.
+## Supabase
+**No SQL migration is required** if you already ran V1.08's visibility migration. This update changes frontend behavior only.
 
-## Upload only these changed files to the repository root
+To verify the actual shared setting, use Supabase SQL Editor:
 
-- `index.html` — version footer and cache references for V1.07.
-- `kiosk.html` — new upcoming-teams square and V1.07 footer/cache references.
-- `kiosk.css` — layout and styling for the compact upcoming-teams square.
-- `kiosk.js` — renders the next two teams with player names from the same live Supabase queue data.
+```sql
+SELECT id, show_player_positions FROM public.queue_settings WHERE id = true;
+```
 
-**Do not overwrite your existing `config.js`, `app.js`, or `styles.css`.** Those files have no changes in this update.
+When the admin box is unchecked the result must be `false`. If it stays `true`, the admin change is failing to save; don't disable RLS or use unrestricted table grants to work around this.
 
-## Installation
-
-1. Open https://github.com/farikolninja97/vb-signup and replace the four changed files listed above, keeping them in the repository root (next to `config.js`).
-2. Wait for the GitHub Pages deployment to finish in GitHub Actions.
-3. Refresh https://farikolninja97.github.io/vb-signup/kiosk.html and check the footer displays **V1.07**.
-4. Confirm that Team 1 remains prominent and the small bottom-right panel shows Team 2 and Team 3 with the players currently registered. Press **Next Team** then **Previous Team** to verify it updates/restores correctly.
-
-No Supabase SQL changes are required. The existing queue data, History, admin controls, themes and public Next/Previous functions remain unchanged.
-
-## Verification performed
-
-- JavaScript syntax check passed.
-- Browser tests using simulated Supabase data passed at 1280×720, 1024×768, 800×600, and 390×844 for two following teams, member names, substitute labels, Next/Previous, the Halloween theme, and V1.07 footer.
-- The layout is responsive; on a narrow phone the panel may require scrolling, but it does not obscure the main roster or action buttons.
-- This update was not deployed to your GitHub repository and has not been tested against your live Supabase data.
+Kiosk display settings are UI-only. This doesn't remove preferred positions from the public database API.
