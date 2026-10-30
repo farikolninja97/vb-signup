@@ -15,6 +15,8 @@ const configured = SUPABASE_URL.startsWith('https://') &&
 const db = configured ? createClient(SUPABASE_URL,SUPABASE_ANON_KEY) : null;
 
 let courts = [], teams = [], players = [], subs = [], completed = [], maxTeamSize = 6;
+// Shared admin-controlled display preference: positions are still collected but not rendered when disabled.
+let showPlayerPositions = true;
 // Signup ownership tokens are random secrets local to this browser. They never
 // appear in public team data or the URL. Server stores only token hashes.
 const OWNED_PLAYERS_KEY = 'vb-my-signups-v102';
@@ -319,7 +321,7 @@ function button(label,action,id,kind='secondary',disabled=false) {
   return `<button type="button" class="${kind} small" data-action="${action}" data-id="${safe(id)}" ${disabled?'disabled':''}>${safe(label)}</button>`;
 }
 function playerHtml(player) {
-  return `${safe(player.name)} <span class="hint">(${safe(player.preferred_position || 'Flexible / Any')})</span>`;
+  return `${safe(player.name)}${showPlayerPositions ? ` <span class="hint">(${safe(player.preferred_position || 'Flexible / Any')})</span>` : ''}`;
 }
 function teamTitle(team) {
   const count = teamCount(team);
@@ -448,7 +450,7 @@ function renderMySignups() {
     const label = person.kind==='sub'?'SUB':'PLAYER';
     return `<div class="my-signup-row">
       <div><strong>${safe(person.name)}</strong> <span class="sub-tag">${label}</span>
-      <div class="hint">${safe(team?.name || 'Team removed')} · ${safe(person.preferred_position||'Flexible / Any')}</div></div>
+      <div class="hint">${safe(team?.name || 'Team removed')}${showPlayerPositions ? ` · ${safe(person.preferred_position || 'Flexible / Any')}` : ''}</div></div>
       <button class="danger small" type="button" data-leave-kind="${person.kind}" data-leave-id="${safe(person.id)}" ${selfLeaving?'disabled':''}>Leave ${person.kind==='sub'?'sub spot':'team'}</button>
     </div>`;
   }).join('') : '<p class="hint">No active signups from this device yet. After joining a team or volunteering as a sub, a Leave button will appear here.</p>';
@@ -462,6 +464,7 @@ function renderAdmin() {
      ['INPUT','SELECT','TEXTAREA'].includes(editing.tagName)) return;
 
   $('maxTeamSize').value = String(maxTeamSize);
+  $('showPlayerPositions').checked = showPlayerPositions;
   const choices = '<option value="">Unassigned</option>' + sortCourts(courts)
     .map(court => `<option value="${safe(court.id)}">${safe(court.name)}</option>`).join('');
 
@@ -487,7 +490,7 @@ function renderAdmin() {
 
   $('adminPlayers').innerHTML = [...players].sort((a,b) => a.name.localeCompare(b.name)).map(player => `
     <div class="admin-team"><strong>${safe(player.name)}</strong>
-      <span class="hint">· ${safe(player.preferred_position || 'Flexible / Any')} · ${safe(teamById(player.team_id)?.name || 'Unknown team')}</span>
+      <span class="hint">${showPlayerPositions ? `· ${safe(player.preferred_position || 'Flexible / Any')} · ` : '· '}${safe(teamById(player.team_id)?.name || 'Unknown team')}</span>
       <div class="actions">${button('Rename','renamePlayer',player.id)}
         ${button('Change position','editPosition',player.id)}${button('Move to team','movePlayer',player.id)}
         ${button('Remove','deletePlayer',player.id,'danger')}</div></div>`
@@ -515,13 +518,14 @@ async function load(forceAdminRender=false) {
       db.from('teams').select('*').order('queue_order'),
       db.from('players').select('*').order('created_at'),
       db.from('team_subs').select('id,team_id,name,preferred_position,source_player_id,created_at').order('created_at'),
-      db.from('queue_settings').select('max_team_size,site_theme').eq('id',true).single(),
+      db.from('queue_settings').select('max_team_size,site_theme,show_player_positions').eq('id',true).single(),
       db.from('completed_teams').select('id,team_name,roster,completed_at').order('id',{ascending:false}).limit(200)
     ]);
     for (const result of results) if (result.error) throw result.error;
     if (readVersion !== latestRead) return;
     [courts,teams,players,subs] = results.slice(0,4).map(result => result.data);
     maxTeamSize = results[4].data.max_team_size;
+    showPlayerPositions = results[4].data.show_player_positions !== false;
     savedSiteTheme = results[4].data.site_theme || 'default';
     if (!themePreviewPending) applyTheme(savedSiteTheme);
     completed = results[5].data;
@@ -869,6 +873,28 @@ $('saveSiteTheme').addEventListener('click',async() => {
     themePreviewPending = false;
     applyTheme(savedSiteTheme);
     $('siteTheme').value = selected;
+  }
+});
+$('showPlayerPositions').addEventListener('change', async (event) => {
+  if (!admin || saving) return;
+  const requested = event.target.checked;
+  const previous = showPlayerPositions;
+  // Instantly update current view; revert if the database refuses the change.
+  showPlayerPositions = requested;
+  renderPublic();
+  renderAdmin();
+  const saved = await runAdmin(async () => {
+    const {data,error} = await db.from('queue_settings')
+      .update({show_player_positions:requested}).eq('id',true)
+      .select('show_player_positions').maybeSingle();
+    if (error) throw error;
+    if (!data || data.show_player_positions !== requested)
+      throw new Error('Position visibility was not saved. Run V1.08 SQL in Supabase and retry.');
+  }, requested ? 'Preferred positions are now shown to everyone.' : 'Preferred positions are hidden from public rosters, History, and Kiosk Mode.');
+  if (!saved) {
+    showPlayerPositions = previous;
+    renderPublic();
+    renderAdmin();
   }
 });
 $('saveMaxTeamSize').addEventListener('click',async() => {

@@ -25,6 +25,7 @@ let waiting = [];
 let hasHistory = false;
 let maxSize = 6;
 let themeName = 'default';
+let showPlayerPositions = true;
 
 function status(message, isError=false) {
   $('kioskStatus').textContent = message;
@@ -72,8 +73,9 @@ function draw() {
   $('kioskTeamName').textContent = first.name;
   const count = first.members.length;
   $('kioskPlayerCount').textContent = `${count} / ${maxSize} players`;
+  $('kioskMembersTitle').textContent = showPlayerPositions ? 'PLAYERS & PREFERRED POSITIONS' : 'PLAYERS';
   $('kioskRoster').innerHTML = count
-    ? first.members.map(person => `<article class="kiosk-person"><div class="kiosk-name">${escapeHtml(person.name)}${person.isSub ? '<span class="kiosk-sub">SUB</span>' : ''}</div><div class="kiosk-position">${escapeHtml(person.preferred_position || 'Flexible / Any')}</div></article>`).join('')
+    ? first.members.map(person => `<article class="kiosk-person"><div class="kiosk-name">${escapeHtml(person.name)}${person.isSub ? '<span class="kiosk-sub">SUB</span>' : ''}</div>${showPlayerPositions ? `<div class="kiosk-position">${escapeHtml(person.preferred_position || 'Flexible / Any')}</div>` : ''}</article>`).join('')
     : '<div class="kiosk-empty">This team does not have any players signed up yet.</div>';
   showActions();
 }
@@ -94,7 +96,7 @@ async function load() {
       db.from('teams').select('id,name,status,queue_order,created_at').eq('status','waiting').order('queue_order'),
       db.from('players').select('id,team_id,name,preferred_position,created_at').order('created_at'),
       db.from('team_subs').select('id,team_id,name,preferred_position,created_at').order('created_at'),
-      db.from('queue_settings').select('max_team_size,site_theme').eq('id',true).maybeSingle(),
+      db.from('queue_settings').select('max_team_size,site_theme,show_player_positions').eq('id',true).maybeSingle(),
       db.from('completed_teams').select('id').order('id',{ascending:false}).limit(1)
     ]);
     for (const result of results) if (result.error) throw result.error;
@@ -115,6 +117,7 @@ async function load() {
     ).map(team=>({...team,members:members.get(team.id) || []}));
     hasHistory = (history.data || []).length > 0;
     maxSize = Number(settings.data?.max_team_size) || 6;
+    showPlayerPositions = settings.data?.show_player_positions !== false;
     themeName = String(settings.data?.site_theme || 'default');
     document.documentElement.dataset.theme = themeName;
     draw();

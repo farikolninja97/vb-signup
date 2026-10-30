@@ -396,3 +396,10 @@ html:not(.rules-accepted),html:not(.rules-accepted) body {overflow:hidden;}
 :root[data-theme="cosvolleyball"] .site-home-link{display:none}
 .topbar-tools .kiosk-launch{background:var(--secondary-bg,#24354e);color:var(--text);border:1px solid var(--secondary-border,#436082)}
 @media(max-width:680px){.topbar{flex-wrap:wrap}.topbar>div:first-child{width:100%}.topbar-tools{width:100%;justify-content:flex-start}.topbar-tools>*{flex:1;text-align:center}}
+
+/* V1.08 — Admin global player-position display setting */
+.admin-preference{margin:9px 0 20px;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--panel2)}
+.admin-visibility-toggle{display:flex;align-items:flex-start;gap:13px;cursor:pointer;margin:0}
+.admin-visibility-toggle input[type="checkbox"]{width:23px;height:23px;min-width:23px;margin:1px 0 0;padding:0;accent-color:var(--accent)}
+.admin-visibility-toggle span{display:flex;flex-direction:column;gap:5px}
+.admin-visibility-toggle small{font-size:.82rem;line-height:1.45;font-weight:400;color:var(--muted)}
