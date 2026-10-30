@@ -895,6 +895,11 @@ $('showPlayerPositions').addEventListener('change', async (event) => {
     showPlayerPositions = previous;
     renderPublic();
     renderAdmin();
+  } else if (realtimeChannel && realtimeConnected) {
+    // Inform open kiosk screens immediately. The event carries no visibility value:
+    // recipients always verify the authoritative setting directly from Supabase.
+    void realtimeChannel.send({type:'broadcast',event:'queue_changed',payload:{refresh:true}})
+      .catch(() => { /* The server-side trigger and 60-second fallback still apply. */ });
   }
 });
 $('saveMaxTeamSize').addEventListener('click',async() => {

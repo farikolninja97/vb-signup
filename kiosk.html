@@ -1,13 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-positions="hidden">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#101827">
   <meta name="description" content="Fullscreen-ready Intermediate Court Queue kiosk showing the first team, the next two teams and their players, and public Next/Previous controls.">
   <title>Intermediate Court Queue · Kiosk</title>
-  <link rel="stylesheet" href="styles.css?v=V1.08">
-  <link rel="stylesheet" href="kiosk.css?v=V1.08">
+  <link rel="stylesheet" href="styles.css?v=V1.09">
+  <link rel="stylesheet" href="kiosk.css?v=V1.09">
 </head>
 <body class="kiosk-page">
   <div class="kiosk-frame">
@@ -35,7 +35,7 @@
         </div>
         <div class="kiosk-team-content">
           <div class="kiosk-current-roster">
-            <div class="kiosk-members-title" id="kioskMembersTitle">PLAYERS &amp; PREFERRED POSITIONS</div>
+            <div class="kiosk-members-title" id="kioskMembersTitle">PLAYERS</div>
             <div id="kioskRoster" class="kiosk-roster" aria-live="polite" aria-atomic="true">
               <div class="kiosk-empty">Connecting to the live team queue…</div>
             </div>
@@ -55,8 +55,8 @@
       <button type="button" id="kioskPrevious" class="kiosk-action kiosk-action-previous" disabled><span class="kiosk-action-icon" aria-hidden="true">↶</span> Previous Team</button>
       <button type="button" id="kioskNext" class="kiosk-action kiosk-action-next" disabled>Next Team <span class="kiosk-action-icon" aria-hidden="true">▶</span></button>
     </section>
-    <footer class="kiosk-footer"><span id="kioskUpdated">Waiting for latest queue</span><span>Current Version: <strong>V1.08</strong></span></footer>
+    <footer class="kiosk-footer"><span id="kioskUpdated">Waiting for latest queue</span><span id="kioskPositionMode" aria-live="polite">Checking position visibility…</span><span>Current Version: <strong>V1.09</strong></span></footer>
   </div>
-  <script type="module" src="kiosk.js?v=V1.08"></script>
+  <script type="module" src="kiosk.js?v=V1.09"></script>
 </body>
 </html>

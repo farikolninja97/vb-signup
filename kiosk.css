@@ -89,3 +89,6 @@ body.kiosk-page { margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-
   .kiosk-position { font-size: .9rem; }
   .kiosk-action { min-height: 72px; padding: 10px; font-size: clamp(1.3rem, 2.3vw, 2rem); }
 }
+
+/* V1.09: hard display guard driven by the verified Supabase visibility preference. */
+:root[data-positions="hidden"] .kiosk-position { display: none !important; }

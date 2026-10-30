@@ -25,7 +25,9 @@ let waiting = [];
 let hasHistory = false;
 let maxSize = 6;
 let themeName = 'default';
-let showPlayerPositions = true;
+// Fail closed: do not reveal preferred positions until settings explicitly permit them.
+let showPlayerPositions = false;
+document.documentElement.dataset.positions = 'hidden';
 
 function status(message, isError=false) {
   $('kioskStatus').textContent = message;
@@ -61,6 +63,7 @@ function renderFollowingTeams() {
   }).join('');
 }
 function draw() {
+  $('kioskMembersTitle').textContent = showPlayerPositions ? 'PLAYERS & PREFERRED POSITIONS' : 'PLAYERS';
   const first = waiting[0];
   renderFollowingTeams();
   if (!first) {
@@ -73,7 +76,6 @@ function draw() {
   $('kioskTeamName').textContent = first.name;
   const count = first.members.length;
   $('kioskPlayerCount').textContent = `${count} / ${maxSize} players`;
-  $('kioskMembersTitle').textContent = showPlayerPositions ? 'PLAYERS & PREFERRED POSITIONS' : 'PLAYERS';
   $('kioskRoster').innerHTML = count
     ? first.members.map(person => `<article class="kiosk-person"><div class="kiosk-name">${escapeHtml(person.name)}${person.isSub ? '<span class="kiosk-sub">SUB</span>' : ''}</div>${showPlayerPositions ? `<div class="kiosk-position">${escapeHtml(person.preferred_position || 'Flexible / Any')}</div>` : ''}</article>`).join('')
     : '<div class="kiosk-empty">This team does not have any players signed up yet.</div>';
@@ -117,13 +119,20 @@ async function load() {
     ).map(team=>({...team,members:members.get(team.id) || []}));
     hasHistory = (history.data || []).length > 0;
     maxSize = Number(settings.data?.max_team_size) || 6;
-    showPlayerPositions = settings.data?.show_player_positions !== false;
+    showPlayerPositions = settings.data?.show_player_positions === true;
+    document.documentElement.dataset.positions = showPlayerPositions ? 'visible' : 'hidden';
+    $('kioskPositionMode').textContent = showPlayerPositions ? 'Positions shown' : 'Positions hidden';
     themeName = String(settings.data?.site_theme || 'default');
     document.documentElement.dataset.theme = themeName;
     draw();
     $('kioskUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
     if (!busy) status('');
   } catch(error) {
+    // Never keep previously visible positions displayed if settings cannot be verified.
+    showPlayerPositions = false;
+    document.documentElement.dataset.positions = 'hidden';
+    $('kioskPositionMode').textContent = 'Positions hidden (settings unavailable)';
+    draw();
     status(`Couldn't refresh queue: ${error?.message || 'Connection error'}`, true);
     $('kioskUpdated').textContent = 'Refresh unsuccessful — will retry';
   } finally {
