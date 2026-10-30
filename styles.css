@@ -333,3 +333,56 @@ input,textarea,select {background:var(--input);border-color:var(--border)}
  :root[data-theme="cosvolleyball"] .topbar #updateLabel{font-size:.81rem}
  :root[data-theme="cosvolleyball"] #adminToggle{margin-left:0}
 }
+
+
+/* V1.05 — mandatory 5–1 / 6–2 acknowledgment for first-time visitors. */
+html:not(.rules-accepted),html:not(.rules-accepted) body {overflow:hidden;}
+.rules-backdrop {
+  position:fixed;inset:0;z-index:5000;
+  background:rgba(3,10,19,.86);backdrop-filter:blur(6px);
+  display:flex;align-items:center;justify-content:center;
+  padding:12px;padding-top:max(12px,env(safe-area-inset-top));
+  padding-bottom:max(12px,env(safe-area-inset-bottom));
+}
+.rules-backdrop[hidden],html.rules-accepted .rules-backdrop {display:none!important;}
+.rules-dialog {
+  width:min(100%,680px);max-height:100%;overflow-y:auto;
+  overscroll-behavior:contain;
+  background:var(--panel,#151f32);color:var(--text,#fff);
+  border:1px solid var(--border,#435671);border-top:4px solid var(--accent,#4ccab6);
+  border-radius:19px;padding:clamp(18px,4vw,30px);
+  box-shadow:0 20px 75px rgba(0,0,0,.45);
+}
+.rules-eyebrow{font-size:.73rem;font-weight:850;letter-spacing:.09em;color:var(--accent);margin-bottom:9px;}
+.rules-dialog h2{font-size:clamp(1.45rem,4vw,2.15rem);line-height:1.12;margin:0 0 12px;}
+.rules-intro{line-height:1.6;margin:0 0 17px;font-size:.94rem;}
+.rules-comparison{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.rules-system{border:1px solid var(--border,#445);border-radius:12px;padding:14px;background:var(--panel2,#1c2a40);}
+.rules-system-heading{display:flex;align-items:center;gap:9px;margin-bottom:8px;flex-wrap:wrap;}
+.rules-system-number{font-size:1rem;color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:3px 8px;font-weight:850;}
+.rules-system p{font-size:.88rem;line-height:1.55;margin:0;}
+.rules-check-label {
+  display:flex;align-items:flex-start;gap:12px;margin:17px 0 12px;
+  padding:13px;border-radius:12px;border:1px solid var(--border,#445);
+  background:var(--panel2,#1c2a40);font-size:.9rem;line-height:1.5;cursor:pointer;
+}
+.rules-check-label input {width:22px;height:22px;min-width:22px;min-height:22px;margin:1px 0 0;accent-color:var(--accent);cursor:pointer;}
+.rules-check-label span{flex:1;}
+.rules-enter{display:block;width:100%;min-height:49px;}
+.rules-enter:focus-visible,.rules-check-label:focus-within,.rules-review:focus-visible{outline:2px solid var(--accent);outline-offset:3px;}
+.rules-footnote{font-size:.76rem;color:var(--muted);line-height:1.5;margin:11px 0 0;}
+.rules-review {background:transparent;border:0;color:var(--muted);font-size:.83rem;padding:4px 9px;text-decoration:underline;text-underline-offset:3px;}
+.rules-review:hover{color:var(--text);}
+@media(max-width:600px) {
+  .rules-comparison{grid-template-columns:1fr;gap:9px;}
+  .rules-dialog{border-radius:14px;padding:17px;}
+  .rules-system{padding:11px;}
+  .rules-intro{font-size:.88rem;}
+  .rules-system p{font-size:.84rem;}
+}
+/* COS theme: native matching light dialog and accent, without affecting other themes. */
+:root[data-theme="cosvolleyball"] .rules-dialog{background:#fff;color:#092945;border-color:#19d4e3;}
+:root[data-theme="cosvolleyball"] .rules-system,
+:root[data-theme="cosvolleyball"] .rules-check-label{background:#edf6f8;color:#092945;border-color:#c3d9e4;}
+:root[data-theme="cosvolleyball"] .rules-eyebrow,
+:root[data-theme="cosvolleyball"] .rules-system-number{color:#007f8a;}
