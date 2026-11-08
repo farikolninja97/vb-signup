@@ -1,7 +1,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
-// Public-only kiosk page. It intentionally does not load admin or signup controls.
+// Kiosk displays public rosters; Next requires approved Supabase admin login.
 const $ = id => document.getElementById(id);
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({
   '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
@@ -16,6 +16,7 @@ const FALLBACK_MS = 60_000;
 let channel = null;
 let isLive = false;
 let busy = false;
+let kioskAdmin = false;
 let isLoading = false;
 let needsAnotherLoad = false;
 let reloadTimer = null;
@@ -43,7 +44,8 @@ function connection(value) {
 }
 function showActions() {
   $('kioskPrevious').disabled = busy || !db || !hasHistory;
-  $('kioskNext').disabled = busy || !db || waiting.length === 0;
+  $('kioskNext').disabled = busy || !db || !kioskAdmin || waiting.length === 0;
+  $('kioskNext').innerHTML = kioskAdmin ? 'Next Team <span class="kiosk-action-icon" aria-hidden="true">▶</span>' : '🔒 Next Team · Admin only';
 }
 function renderFollowingTeams() {
   const upcoming = waiting.slice(1, 3);
@@ -77,7 +79,7 @@ function draw() {
   const count = first.members.length;
   $('kioskPlayerCount').textContent = `${count} / ${maxSize} players`;
   $('kioskRoster').innerHTML = count
-    ? first.members.map(person => `<article class="kiosk-person"><div class="kiosk-name">${escapeHtml(person.name)}${person.isSub ? '<span class="kiosk-sub">SUB</span>' : ''}</div>${showPlayerPositions ? `<div class="kiosk-position">${escapeHtml(person.preferred_position || 'Flexible / Any')}</div>` : ''}</article>`).join('')
+    ? first.members.map(person => `<article class="kiosk-person"><div class="kiosk-name">${escapeHtml(person.name)}${person.isSub ? '<span class="kiosk-sub">SUB</span>' : ''}</div>${showPlayerPositions && person.preferred_position && person.preferred_position !== 'Flexible / Any' ? `<div class="kiosk-position">${escapeHtml(person.preferred_position)}</div>` : ''}</article>`).join('')
     : '<div class="kiosk-empty">This team does not have any players signed up yet.</div>';
   showActions();
 }
@@ -142,6 +144,10 @@ async function load() {
 }
 async function rotate(which) {
   if (!db || busy) return;
+  if (which === 'advance' && !kioskAdmin) {
+    status('Only an approved admin can use Next Team. Use Admin sign in above.',true);
+    return;
+  }
   if (which === 'advance' && waiting.length === 0) return;
   if (which === 'undo' && !hasHistory) return;
   busy = true;
@@ -158,6 +164,70 @@ async function rotate(which) {
     busy = false;
     showActions();
   }
+}
+// The kiosk never grants admin access from the UI alone: Supabase checks
+// admin_users, and the Next Team database function validates it again.
+const kioskLoginOverlay = $('kioskLoginOverlay');
+async function checkKioskAdmin() {
+  kioskAdmin = false;
+  if (db) {
+    const sessionResult = await db.auth.getSession();
+    const session = sessionResult.data?.session;
+    if (session) {
+      const result = await db.from('admin_users').select('user_id')
+        .eq('user_id',session.user.id).maybeSingle();
+      kioskAdmin = !result.error && Boolean(result.data);
+    }
+  }
+  $('kioskAdminToggle').textContent = kioskAdmin ? '🔓 Admin · Sign out' : '🔒 Admin sign in';
+  showActions();
+}
+function closeKioskLogin() {
+  kioskLoginOverlay.hidden = true;
+  $('kioskAdminToggle').focus({preventScroll:true});
+}
+$('kioskAdminToggle').addEventListener('click',async()=>{
+  if (kioskAdmin) {
+    if (!confirm('Sign out of admin access on this tablet?')) return;
+    const result = await db.auth.signOut();
+    if (result.error) {status(result.error.message,true);return;}
+    await checkKioskAdmin();
+    status('Signed out. Only admins can advance the queue.');
+    return;
+  }
+  kioskLoginOverlay.hidden = false;
+  $('kioskAdminEmail').focus({preventScroll:true});
+});
+$('kioskLoginClose').addEventListener('click',closeKioskLogin);
+kioskLoginOverlay.addEventListener('click',event=>{
+  if (event.target===kioskLoginOverlay) closeKioskLogin();
+});
+$('kioskLoginForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  if (!db) return;
+  const submit = $('kioskLoginForm').querySelector('button[type="submit"]');
+  submit.disabled=true;
+  $('kioskLoginStatus').textContent='Signing in…';
+  try {
+    const result = await db.auth.signInWithPassword({
+      email:$('kioskAdminEmail').value.trim(), password:$('kioskAdminPassword').value
+    });
+    if (result.error) throw result.error;
+    await checkKioskAdmin();
+    if (!kioskAdmin) throw new Error('This account is not listed in admin_users.');
+    $('kioskAdminPassword').value='';
+    $('kioskLoginStatus').textContent='';
+    closeKioskLogin();
+    status('Admin connected. Next Team is available.');
+  } catch(error) {
+    $('kioskLoginStatus').textContent=error.message||'Unable to sign in';
+  } finally { submit.disabled=false; }
+});
+document.addEventListener('keydown',event=>{
+  if (event.key==='Escape' && !kioskLoginOverlay.hidden) closeKioskLogin();
+});
+if (db) {
+  db.auth.onAuthStateChange(()=>setTimeout(()=>{void checkKioskAdmin();},0));
 }
 $('kioskNext').addEventListener('click',()=>void rotate('advance'));
 $('kioskPrevious').addEventListener('click',()=>void rotate('undo'));
@@ -225,6 +295,7 @@ if (!db) {
   $('kioskRoster').innerHTML = '<div class="kiosk-empty">The kiosk requires the same Supabase configuration as the homepage.</div>';
   connection('offline');
 } else {
+  await checkKioskAdmin();
   await load();
   subscribe();
   setInterval(()=>{

@@ -15,7 +15,7 @@ const configured = SUPABASE_URL.startsWith('https://') &&
 const db = configured ? createClient(SUPABASE_URL,SUPABASE_ANON_KEY) : null;
 
 let courts = [], teams = [], players = [], subs = [], completed = [], maxTeamSize = 6;
-// Shared admin-controlled display preference: positions are still collected but not rendered when disabled.
+// Shared admin display preference; new signups do not collect preferred positions.
 let showPlayerPositions = true;
 // Signup ownership tokens are random secrets local to this browser. They never
 // appear in public team data or the URL. Server stores only token hashes.
@@ -36,7 +36,7 @@ function privateToken() {
   if (!crypto?.randomUUID) throw new Error('This browser cannot create a secure private signup token. Use HTTPS and an up-to-date browser.');
   return crypto.randomUUID();
 }
-let subDraft = {open:false,name:'',position:'Flexible / Any',teamId:null};
+let subDraft = {open:false,playerId:'',teamId:null};
 let selfLeaving = false;
 const THEME_NAMES = ['default','halloween','christmas','thanksgiving','valentines','stpatricks','fourthofjuly','cosvolleyball'];
 let siteTheme = 'default';
@@ -321,7 +321,7 @@ function button(label,action,id,kind='secondary',disabled=false) {
   return `<button type="button" class="${kind} small" data-action="${action}" data-id="${safe(id)}" ${disabled?'disabled':''}>${safe(label)}</button>`;
 }
 function playerHtml(player) {
-  return `${safe(player.name)}${showPlayerPositions ? ` <span class="hint">(${safe(player.preferred_position || 'Flexible / Any')})</span>` : ''}`;
+  return `${safe(player.name)}${showPlayerPositions && player.preferred_position && player.preferred_position !== 'Flexible / Any' ? ` <span class="hint">(${safe(player.preferred_position)})</span>` : ''}`;
 }
 function teamTitle(team) {
   const count = teamCount(team);
@@ -330,20 +330,26 @@ function teamTitle(team) {
 function subFormHtml(team) {
   const count = teamCount(team);
   if (count >= maxTeamSize) return '<p class="sub-full">This team is full. No subs needed.</p>';
-  if (subDraft.teamId !== team.id) {
-    subDraft = {open:false,name:'',position:'Flexible / Any',teamId:team.id};
-  }
-  const eligibleFrom = `You may sub if you are not on a team, or your regular team is at least three places behind the first team. Players on the first team or the next two teams cannot sub.`;
-  const positionOptions = positions.map(p=>`<option value="${safe(p)}" ${p===subDraft.position?'selected':''}>${safe(p)}</option>`).join('');
+  if (subDraft.teamId !== team.id) subDraft = {open:false,playerId:'',teamId:team.id};
+  // A device must own an active signup on a team at least three places behind first.
+  // Supabase rechecks ownership and queue rank atomically before accepting the sub.
+  const waiting = sortTeams(teams.filter(item => item.status === 'waiting'));
+  const eligible = players.filter(player =>
+    Boolean(ownedPlayers[player.id]) && myTeamRank(player,waiting) > 3 &&
+    !subs.some(sub=>sub.source_player_id===player.id)
+  );
+  if (!eligible.some(player=>player.id===subDraft.playerId)) subDraft.playerId = eligible[0]?.id || '';
+  const explanation = 'You must already be registered on a team at least three spots behind first. Players on the first team or the next two teams cannot sub. Use the same device you originally signed up with.';
+  const options = eligible.map(player=>`<option value="${safe(player.id)}" ${player.id===subDraft.playerId?'selected':''}>${safe(player.name)} · ${safe(teamById(player.team_id)?.name || 'Team')}</option>`).join('');
   return `<div class="sub-volunteer">
-    <label class="sub-toggle"><input id="subOptIn" type="checkbox" ${subDraft.open?'checked':''} /> <span><strong>I'd like to sub for this team</strong><small>${maxTeamSize-count} open ${maxTeamSize-count===1?'spot':'spots'} available</small></span></label>
-    ${subDraft.open?`<form id="subForm" class="sub-fields">
-      <label>Your name<input id="subName" name="subName" maxlength="60" autocomplete="off" placeholder="Your first name or nickname" value="${safe(subDraft.name)}" required /></label>
-      <label>Preferred position<select id="subPosition" name="subPosition">${positionOptions}</select></label>
-      <p class="hint">${eligibleFrom}</p>
+    <label class="sub-toggle"><input id="subOptIn" type="checkbox" ${subDraft.open?'checked':''} ${!eligible.length?'disabled':''} /> <span><strong>I'd like to sub for this team</strong><small>${maxTeamSize-count} open ${maxTeamSize-count===1?'spot':'spots'} available</small></span></label>
+    <p class="hint">${explanation}</p>
+    ${eligible.length === 0 ? '<p class="sub-ineligible">No eligible team signups from this device. Sign up for a team first, or wait until your team is farther back in line.</p>' : ''}
+    ${subDraft.open && eligible.length ? `<form id="subForm" class="sub-fields">
+      <label>Select your existing team signup<select id="subPlayerChoice" name="subPlayerChoice" required>${options}</select></label>
       <button class="primary" type="submit">Add me as a sub</button>
       <p class="message" id="subStatus" role="status"></p>
-    </form>`:''}
+    </form>` : ''}
   </div>`;
 }
 function teamCard(team,isNext=false,place=1) {
@@ -399,8 +405,9 @@ function renderPublic() {
     <div class="hint">Next available court: ${courtNames || 'No courts configured'}</div>
     <div class="public-court-actions top-queue-actions" role="group" aria-label="Queue controls">
       ${button('↶ Previous Team','undo','queue','secondary',publicRotating)}
-      ${button('▶ Next Team','advance','queue','primary',publicRotating || !waiting.length || !courts.length)}
+      ${button(admin ? '▶ Next Team' : '🔒 Next Team · Admin only','advance','queue','primary',publicRotating || !admin || !waiting.length || !courts.length)}
     </div>
+    ${!admin ? '<p class="hint queue-admin-hint">Admin sign-in is required to advance the queue. Previous Team remains available to everyone.</p>' : ''}
     <div class="subtitle">UP NEXT</div>
     ${waiting.length ? teamCard(waiting[0],true,1) : '<div class="empty">No teams waiting</div>'}
     ${followingTeams.length ? `<div class="following-heading"><div class="subtitle">Teams following in queue</div><span class="hint">${followingTeams.length} waiting behind first</span></div>
@@ -450,7 +457,7 @@ function renderMySignups() {
     const label = person.kind==='sub'?'SUB':'PLAYER';
     return `<div class="my-signup-row">
       <div><strong>${safe(person.name)}</strong> <span class="sub-tag">${label}</span>
-      <div class="hint">${safe(team?.name || 'Team removed')}${showPlayerPositions ? ` · ${safe(person.preferred_position || 'Flexible / Any')}` : ''}</div></div>
+      <div class="hint">${safe(team?.name || 'Team removed')}${showPlayerPositions && person.preferred_position && person.preferred_position !== 'Flexible / Any' ? ` · ${safe(person.preferred_position)}` : ''}</div></div>
       <button class="danger small" type="button" data-leave-kind="${person.kind}" data-leave-id="${safe(person.id)}" ${selfLeaving?'disabled':''}>Leave ${person.kind==='sub'?'sub spot':'team'}</button>
     </div>`;
   }).join('') : '<p class="hint">No active signups from this device yet. After joining a team or volunteering as a sub, a Leave button will appear here.</p>';
@@ -490,7 +497,7 @@ function renderAdmin() {
 
   $('adminPlayers').innerHTML = [...players].sort((a,b) => a.name.localeCompare(b.name)).map(player => `
     <div class="admin-team"><strong>${safe(player.name)}</strong>
-      <span class="hint">${showPlayerPositions ? `· ${safe(player.preferred_position || 'Flexible / Any')} · ` : '· '}${safe(teamById(player.team_id)?.name || 'Unknown team')}</span>
+      <span class="hint">${showPlayerPositions && player.preferred_position && player.preferred_position !== 'Flexible / Any' ? `· ${safe(player.preferred_position)} · ` : '· '}${safe(teamById(player.team_id)?.name || 'Unknown team')}</span>
       <div class="actions">${button('Rename','renamePlayer',player.id)}
         ${button('Change position','editPosition',player.id)}${button('Move to team','movePlayer',player.id)}
         ${button('Remove','deletePlayer',player.id,'danger')}</div></div>`
@@ -561,6 +568,7 @@ async function checkAdmin() {
   $('logoutBtn').classList.toggle('hidden',!session);
   $('adminToggle').textContent = admin ? 'Admin controls' : 'Admin login';
   if (admin) renderAdmin();
+  renderPublic(); // Next is enabled only for verified administrators.
 }
 
 // Request a returned row for writes. This catches silent zero-row updates/deletes
@@ -656,6 +664,37 @@ $('disableNotifications').addEventListener('click', () => {
 });
 updateNotificationButtons();
 
+// Signup is in an accessible top-of-page modal, not a permanent page section.
+const signupBackdrop = $('signupModalBackdrop');
+let signupPreviousFocus = null;
+function openSignupModal() {
+  if (!document.documentElement.classList.contains('rules-accepted')) return;
+  signupPreviousFocus = document.activeElement;
+  signupBackdrop.classList.remove('hidden');
+  document.body.classList.add('signup-modal-open');
+  $('playerName').focus({preventScroll:true});
+}
+function closeSignupModal() {
+  signupBackdrop.classList.add('hidden');
+  document.body.classList.remove('signup-modal-open');
+  (signupPreviousFocus?.isConnected ? signupPreviousFocus : $('openSignup')).focus({preventScroll:true});
+}
+$('openSignup').addEventListener('click',openSignupModal);
+$('closeSignup').addEventListener('click',closeSignupModal);
+signupBackdrop.addEventListener('click',event=>{
+  if (event.target===signupBackdrop) closeSignupModal();
+});
+document.addEventListener('keydown',event=>{
+  if (signupBackdrop.classList.contains('hidden')) return;
+  if (event.key==='Escape') { event.preventDefault(); closeSignupModal(); return; }
+  if (event.key!=='Tab') return;
+  const focusable=[...signupBackdrop.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled])')];
+  const first=focusable[0],last=focusable.at(-1);
+  if (!first) return;
+  if (event.shiftKey && document.activeElement===first) {event.preventDefault();last.focus();}
+  else if (!event.shiftKey && document.activeElement===last) {event.preventDefault();first.focus();}
+});
+
 $('signupForm').addEventListener('submit',async event => {
   event.preventDefault();
   if (!db) return;
@@ -664,9 +703,10 @@ $('signupForm').addEventListener('submit',async event => {
   try { playerName = validName($('playerName').value); ensureUniquePlayerName(playerName); }
   catch (error) { message('signupStatus',error.message,true); return; }
   const selectedTeam = $('teamChoice').value;
-  const playerPosition = $('playerPosition').value;
-  if (!playerName || !selectedTeam || !playerPosition) {
-    message('signupStatus','Enter your name, preferred position and team.',true);
+  // Keep the existing required database column compatible without asking players for a position.
+  const playerPosition = 'Flexible / Any';
+  if (!playerName || !selectedTeam) {
+    message('signupStatus','Enter your name and choose a team.',true);
     return;
   }
   submit.disabled = true;
@@ -682,7 +722,6 @@ $('signupForm').addEventListener('submit',async event => {
       message('signupStatus','Signup saved, but this browser could not store your private leave token. Ask an admin to remove you if you need to leave.',true);
     }
     $('playerName').value = '';
-    $('playerPosition').value = '';
     setFollow(selectedTeam);
       try { if (localStorage.getItem(OWNED_PLAYERS_KEY)) message('signupStatus','You are signed up! Use Leave Team below if you need to go. Alerts are following your team.'); } catch (_) {}
     await load();
@@ -692,51 +731,49 @@ $('signupForm').addEventListener('submit',async event => {
     submit.disabled = false;
   }
 });
-// Temporary subs only appear for the first-in-line team while it has space.
+// Subs must already have an active signup owned on this device on a team
+// at least three positions behind first. Server enforces the same restriction.
 $('courtGrid').addEventListener('change',event => {
   if (event.target.id === 'subOptIn') {
     subDraft.open = event.target.checked;
     renderPublic();
-    if (subDraft.open) $('subName')?.focus();
+    if (subDraft.open) $('subPlayerChoice')?.focus();
   }
-  if (event.target.id === 'subPosition') subDraft.position = event.target.value;
-});
-$('courtGrid').addEventListener('input',event => {
-  if (event.target.id === 'subName') subDraft.name = event.target.value;
+  if (event.target.id === 'subPlayerChoice') subDraft.playerId = event.target.value;
 });
 $('courtGrid').addEventListener('submit',async event => {
   if (event.target.id !== 'subForm') return;
   event.preventDefault();
   const form = event.target;
   const submit = form.querySelector('button[type=submit]');
-  let name;
-  try { name = validName(subDraft.name); }
-  catch(error) { message('subStatus',error.message,true); return; }
-  const original = players.find(p=>normalizedPlayerName(p.name)===normalizedPlayerName(name));
+  const original = players.find(player=>player.id===subDraft.playerId);
+  if (!original || !ownedPlayers[original.id]) {
+    message('subStatus','Sign up for an active team from this device before volunteering as a sub.',true);
+    return;
+  }
   const waiting = sortTeams(teams.filter(team=>team.status==='waiting'));
-  let token;
-  if (original) {
-    token = ownedPlayers[original.id];
-    if (!token) {
-      message('subStatus','That name is registered on a team, but this phone does not own the signup. Use the phone that originally signed up, or ask an admin to help.',true); return;
-    }
-    const rank = myTeamRank(original,waiting);
-    if (rank < 1 || rank <= 3) {
-      message('subStatus',`Your team is #${rank} in line. Teams 1, 2 and 3 cannot supply subs for the first team.`,true); return;
-    }
-  } else {
-    try { token = privateToken(); } catch (error) { message('subStatus',error.message,true); return; }
+  const rank = myTeamRank(original,waiting);
+  if (rank <= 3) {
+    message('subStatus','Your team must be at least three spots behind the first team to substitute.',true);
+    return;
+  }
+  if (subs.some(sub=>sub.source_player_id===original.id)) {
+    message('subStatus','You already have an active substitute spot.',true);
+    return;
   }
   submit.disabled = true;
   try {
+    const token = ownedPlayers[original.id];
     const id = await rpc('join_first_team_as_sub',{
-      sub_name:name, sub_position:subDraft.position,
-      source_player_id:original?.id || null, leave_token:token
+      sub_name:original.name,
+      sub_position:original.preferred_position || 'Flexible / Any',
+      source_player_id:original.id,
+      leave_token:token
     });
     if (!id) throw new Error('The server did not return a substitute signup ID');
     ownedSubs[id] = token;
     const stored = storeOwned(OWNED_SUBS_KEY,ownedSubs);
-    subDraft = {open:false,name:'',position:'Flexible / Any',teamId:null};
+    subDraft = {open:false,playerId:'',teamId:null};
     await load();
     message('queueStatus',stored?'You are signed up as a sub! Use Leave Sub Spot below to withdraw.':'Sub signup saved, but this browser could not save your leave token. Ask an admin to remove the sub if needed.',!stored);
   } catch(error) {
@@ -794,6 +831,10 @@ $('courtGrid').addEventListener('click', async event => {
   if (!target || !db || publicRotating) return;
   const {action,id} = target.dataset;
   if (action !== 'advance' && action !== 'undo') return;
+  if (action === 'advance' && !admin) {
+    message('queueStatus','Admin login is required to use Next Team.',true);
+    return;
+  }
   publicRotating = true;
   $('courtGrid').querySelectorAll('button[data-action]').forEach(item => {item.disabled=true;});
   message('queueStatus',action === 'advance' ? 'Advancing teams…' : 'Restoring previous teams…');
