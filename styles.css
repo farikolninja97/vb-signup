@@ -442,3 +442,55 @@ html:not(.rules-accepted),html:not(.rules-accepted) body {overflow:hidden;}
 .queue-pin-dialog input{width:100%;border:1px solid var(--border);border-radius:10px;background:var(--input);color:var(--text);padding:12px;font:inherit;font-size:1.2rem;letter-spacing:.24em}
 .queue-pin-dialog button[type=submit]{min-height:48px}
 @media(max-width:560px){.signup-modal .add-player-toggle{width:100%}.queue-pin-dialog{padding:18px}.single-queue .team-row .join-team-button{width:100%}}
+
+
+/* V1.12 — compact utility links and player-first action bar. */
+.topbar{display:block;position:relative;isolation:isolate}
+.topbar>div:first-child{width:100%;max-width:1120px;position:relative;z-index:2}
+.topbar-utility{position:absolute;z-index:5;top:17px;right:max(16px,calc((100vw - 1120px)/2));display:flex;gap:7px;align-items:center}
+.topbar-utility a,.topbar-utility button{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:7px 12px;font-size:.77rem;font-weight:700;white-space:nowrap;text-decoration:none;border:1px solid var(--border);border-radius:10px;color:var(--text);background:color-mix(in srgb,var(--panel) 85%,transparent);backdrop-filter:blur(8px)}
+.topbar-utility a:hover,.topbar-utility button:hover{filter:brightness(1.17)}
+.topbar .eyebrow{display:block;margin-top:4px}
+.quick-actions{display:grid;grid-template-columns:minmax(245px,1.65fr) minmax(125px,1fr) minmax(155px,1.05fr);gap:10px;max-width:845px;margin:18px 0 17px;position:relative;z-index:3}
+.quick-actions button{width:100%;min-height:63px;border-radius:15px;display:flex;align-items:center;justify-content:center;gap:9px;text-align:center;box-shadow:0 6px 20px #0003;transition:transform .13s ease,filter .13s ease}
+.quick-actions button:hover{transform:translateY(-2px);filter:brightness(1.08)}
+.quick-actions button:focus-visible,.topbar-utility :is(a,button):focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.quick-actions .quick-action-join{background:linear-gradient(115deg,var(--accent) 0%,color-mix(in srgb,var(--accent) 70%,white) 100%);color:#08221d;border:2px solid color-mix(in srgb,var(--accent) 75%,white);justify-content:flex-start;text-align:left;padding:13px 17px;box-shadow:0 5px 23px color-mix(in srgb,var(--accent) 30%,transparent)}
+.quick-action-join strong{display:block;font-size:clamp(1.12rem,2.7vw,1.45rem);font-weight:900;letter-spacing:.01em}
+.quick-action-join small{display:block;font-size:.76rem;font-weight:650;opacity:.82;line-height:1.35;margin-top:1px}
+.quick-action-icon{font-size:1.7rem;flex:none}
+.quick-action-arrow{font-size:1.9rem;margin-left:auto;line-height:1}
+.quick-actions .quick-action-side{background:color-mix(in srgb,var(--panel) 82%,transparent);border:1px solid var(--border);color:var(--text);font-size:.94rem;font-weight:800}
+.quick-action-side span:first-child{font-size:1.3rem}
+.quick-modal-backdrop{position:fixed;inset:0;z-index:4300;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(2,8,17,.82);backdrop-filter:blur(5px)}
+.quick-modal-backdrop.hidden{display:none!important}
+.quick-modal{width:min(100%,650px);max-height:min(92dvh,820px);overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--border);border-radius:21px;background:var(--panel);color:var(--text);box-shadow:0 22px 70px #0009;scrollbar-width:thin}
+.quick-modal .panel{background:transparent!important;border:0!important;box-shadow:none!important;margin:0;padding:24px}
+.quick-modal .panel-heading{gap:12px;align-items:flex-start}
+.quick-modal .panel-heading h2{flex:1;min-width:0}
+.quick-modal .quick-close{flex:none}
+.quick-modal .follow-form button{min-height:42px}
+:root[data-theme="cosvolleyball"] .topbar-utility a,:root[data-theme="cosvolleyball"] .topbar-utility button{color:white;background:rgba(7,43,68,.87);border-color:#19d4e3}
+:root[data-theme="cosvolleyball"] .quick-actions .quick-action-side{background:rgba(7,43,68,.82);color:#fff;border-color:rgba(25,212,227,.7)}
+:root[data-theme="cosvolleyball"] .quick-actions .quick-action-join{background:linear-gradient(125deg,#16bfd0,#5defdb);color:#042c3b;border-color:#57ecf0}
+:root[data-theme="cosvolleyball"] .quick-modal .panel{color:#092945}
+@media(max-width:760px){
+ .quick-actions{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ .quick-actions .quick-action-join{grid-column:1/-1;min-height:76px}
+ .quick-actions .quick-action-side{min-height:52px;font-size:.86rem}
+ .topbar{display:flex;flex-direction:column;gap:4px}
+ .topbar-utility{position:relative;top:auto;right:auto;order:-1;align-self:flex-end}
+ .topbar>div:first-child{width:100%}
+ .topbar .eyebrow{margin-top:7px}
+}
+@media(max-width:500px){
+ .quick-actions .quick-action-join{padding:14px 16px}
+ .quick-actions .quick-action-side{padding:9px 6px;gap:5px}
+ .quick-modal-backdrop{padding:10px}
+ .quick-modal{max-height:calc(100dvh - 20px)}
+ .quick-modal .panel{padding:18px}
+ .quick-modal .follow-form{display:grid;grid-template-columns:1fr 1fr}
+ .quick-modal .follow-form label{grid-column:1/-1}
+ .quick-modal .follow-form button{font-size:.8rem;padding:9px 6px}
+}
+@media(prefers-reduced-motion:reduce){.quick-actions button{transition:none}.quick-actions button:hover{transform:none}}

@@ -567,7 +567,8 @@ async function checkAdmin() {
   $('loginPanel').classList.toggle('hidden',admin);
   $('adminPanel').classList.toggle('hidden',!admin);
   $('logoutBtn').classList.toggle('hidden',!session);
-  $('adminToggle').textContent = admin ? 'Admin controls' : 'Admin login';
+  $('adminToggle').textContent = admin ? '⚙ Admin' : '⚙ Admin';
+  $('adminToggle').setAttribute('aria-label', admin ? 'Open Admin Controls' : 'Open Admin Login');
   if (admin) renderAdmin();
   renderPublic(); // Admins bypass the PIN; everyone else must enter it at each rotation.
 }
@@ -683,6 +684,52 @@ function closeSignupModal() {
   (signupPreviousFocus?.isConnected ? signupPreviousFocus : $('openSignup')).focus({preventScroll:true});
 }
 $('openSignup').addEventListener('click',()=>openSignupModal());
+
+// V1.12: My Signups and My Team Alerts are on-demand dialogs.
+// Existing elements and handlers are preserved so live updates continue to populate them.
+let activeQuickDialog = null;
+let quickPreviousFocus = null;
+function closeQuickDialog(){
+  if (!activeQuickDialog) return;
+  activeQuickDialog.classList.add('hidden');
+  activeQuickDialog = null;
+  document.body.classList.remove('signup-modal-open');
+  for (const el of [document.querySelector('.topbar'),$('mainContent'),document.querySelector('.site-footer')]) if (el) el.inert=false;
+  const target = quickPreviousFocus?.isConnected ? quickPreviousFocus : $('openSignup');
+  quickPreviousFocus = null;
+  target?.focus?.({preventScroll:true});
+}
+function openQuickDialog(id){
+  if (!document.documentElement.classList.contains('rules-accepted')) return;
+  const backdrop = $(id);
+  if (!backdrop || activeQuickDialog===backdrop) return;
+  if (activeQuickDialog) closeQuickDialog();
+  quickPreviousFocus = document.activeElement;
+  activeQuickDialog = backdrop;
+  backdrop.classList.remove('hidden');
+  document.body.classList.add('signup-modal-open');
+  for (const el of [document.querySelector('.topbar'),$('mainContent'),document.querySelector('.site-footer')]) if (el) el.inert=true;
+  backdrop.querySelector('.quick-close')?.focus({preventScroll:true});
+}
+$('openMySignups').addEventListener('click',()=>openQuickDialog('mySignupsBackdrop'));
+$('openTeamAlerts').addEventListener('click',()=>openQuickDialog('teamAlertsBackdrop'));
+$('closeMySignups').addEventListener('click',closeQuickDialog);
+$('closeTeamAlerts').addEventListener('click',closeQuickDialog);
+for (const id of ['mySignupsBackdrop','teamAlertsBackdrop']) {
+  $(id).addEventListener('click',event=>{if(event.target===$(id))closeQuickDialog();});
+}
+document.addEventListener('keydown',event=>{
+  if (!activeQuickDialog) return;
+  if (event.key==='Escape'){event.preventDefault();closeQuickDialog();return;}
+  if (event.key!=='Tab') return;
+  const focusable=[...activeQuickDialog.querySelectorAll('a[href],button:not([disabled]):not(.hidden),input:not([disabled]),select:not([disabled]),textarea:not([disabled])')]
+    .filter(el=>!el.closest('.hidden') && el.getClientRects().length);
+  const first=focusable[0],last=focusable.at(-1);
+  if (!first) return;
+  if (event.shiftKey && document.activeElement===first){event.preventDefault();last.focus();}
+  else if (!event.shiftKey && document.activeElement===last){event.preventDefault();first.focus();}
+});
+
 $('courtGrid').addEventListener('click',event=>{
   const join=event.target.closest('button[data-join-team]');
   if (join) openSignupModal(join.dataset.joinTeam);
