@@ -92,3 +92,17 @@ body.kiosk-page { margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-
 
 /* V1.09: hard display guard driven by the verified Supabase visibility preference. */
 :root[data-positions="hidden"] .kiosk-position { display: none !important; }
+
+
+/* V1.10 — small kiosk login for admin-only Next Team. */
+.kiosk-login-overlay[hidden]{display:none!important;}
+.kiosk-login-overlay{position:fixed;inset:0;z-index:8000;background:rgba(3,10,19,.82);display:flex;align-items:center;justify-content:center;padding:14px;backdrop-filter:blur(5px);}
+.kiosk-login-dialog{width:min(100%,430px);max-height:95dvh;overflow:auto;background:var(--panel);color:var(--text);border:1px solid var(--border);border-top:4px solid var(--accent);border-radius:18px;padding:22px;box-shadow:0 20px 75px #0008;}
+.kiosk-login-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+.kiosk-login-head h2{font-size:1.3rem;line-height:1.2;margin:0;}
+.kiosk-login-dialog p{font-size:.9rem;color:var(--muted);line-height:1.5;}
+.kiosk-login-dialog form{display:grid;gap:13px;margin:12px 0;}
+.kiosk-login-dialog label{display:grid;gap:5px;font-size:.9rem;font-weight:650;}
+.kiosk-login-dialog input{width:100%;border:1px solid var(--border);border-radius:10px;background:var(--bg);padding:12px;color:var(--text);font:inherit;}
+.kiosk-login-submit{border:0;border-radius:10px;background:var(--accent);color:var(--accent-ink,#09251f);font-weight:800;padding:13px;font:inherit;}
+.kiosk-login-error{min-height:20px;color:var(--danger)!important;}
