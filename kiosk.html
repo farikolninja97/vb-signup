@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#101827">
-  <meta name="description" content="Fullscreen-ready Intermediate Court Queue kiosk showing the first team, the next two teams and their players, and admin-only Next and public Previous controls.">
+  <meta name="description" content="Fullscreen-ready Intermediate Court Queue kiosk showing the first team, the next two teams and their players, and 4-digit PIN-controlled Next and Previous buttons.">
   <title>Intermediate Court Queue · Kiosk</title>
-  <link rel="stylesheet" href="styles.css?v=V1.10">
-  <link rel="stylesheet" href="kiosk.css?v=V1.10">
+  <link rel="stylesheet" href="styles.css?v=V1.11">
+  <link rel="stylesheet" href="kiosk.css?v=V1.11">
 </head>
 <body class="kiosk-page">
   <div class="kiosk-frame">
@@ -51,14 +51,14 @@
       <p id="kioskStatus" class="kiosk-status" role="status" aria-live="polite"></p>
     </main>
 
-    <section class="kiosk-actionbar" aria-label="Queue controls: Previous public; Next admin-only">
+    <section class="kiosk-actionbar" aria-label="Queue controls: organizers may use a four-digit PIN">
       <button type="button" id="kioskPrevious" class="kiosk-action kiosk-action-previous" disabled><span class="kiosk-action-icon" aria-hidden="true">↶</span> Previous Team</button>
-      <button type="button" id="kioskNext" class="kiosk-action kiosk-action-next" disabled>🔒 Next Team <span class="kiosk-action-icon" aria-hidden="true">▶</span></button>
+      <button type="button" id="kioskNext" class="kiosk-action kiosk-action-next" disabled>Next Team <span class="kiosk-action-icon" aria-hidden="true">▶</span></button>
     </section>
-    <div class="kiosk-login-overlay" id="kioskLoginOverlay" hidden>
+    <div class="kiosk-login-overlay" id="kioskPinOverlay" hidden><section class="kiosk-login-dialog" role="dialog" aria-modal="true" aria-labelledby="kioskPinTitle"><div class="kiosk-login-head"><h2 id="kioskPinTitle">Enter court-control PIN</h2><button id="kioskPinClose" class="kiosk-utility-btn" type="button">✕ Close</button></div><p>Enter the four-digit PIN supplied by an organizer to advance or undo the queue.</p><form id="kioskPinForm"><label>Four-digit PIN<input id="kioskPinInput" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" autocomplete="off" required placeholder="••••"/></label><button class="kiosk-login-submit" type="submit">Confirm</button></form><p class="kiosk-login-error" id="kioskPinStatus" role="status"></p></section></div><div class="kiosk-login-overlay" id="kioskLoginOverlay" hidden>
       <section class="kiosk-login-dialog" role="dialog" aria-modal="true" aria-labelledby="kioskLoginTitle">
-        <div class="kiosk-login-head"><h2 id="kioskLoginTitle">Admin login for Next Team</h2><button id="kioskLoginClose" class="kiosk-utility-btn" type="button">✕ Close</button></div>
-        <p>Only approved admins can advance the queue. Previous Team remains public.</p>
+        <div class="kiosk-login-head"><h2 id="kioskLoginTitle">Admin login (PIN bypass)</h2><button id="kioskLoginClose" class="kiosk-utility-btn" type="button">✕ Close</button></div>
+        <p>Admins can control the queue without entering the shared four-digit PIN.</p>
         <form id="kioskLoginForm">
           <label>Email<input id="kioskAdminEmail" type="email" autocomplete="username" required></label>
           <label>Password<input id="kioskAdminPassword" type="password" autocomplete="current-password" required></label>
@@ -67,8 +67,8 @@
         <p class="kiosk-login-error" id="kioskLoginStatus" role="status"></p>
       </section>
     </div>
-    <footer class="kiosk-footer"><span id="kioskUpdated">Waiting for latest queue</span><span id="kioskPositionMode" aria-live="polite">Checking position visibility…</span><span>Current Version: <strong>V1.10</strong></span></footer>
+    <footer class="kiosk-footer"><span id="kioskUpdated">Waiting for latest queue</span><span id="kioskPositionMode" aria-live="polite">Checking position visibility…</span><span>Current Version: <strong>V1.11</strong></span></footer>
   </div>
-  <script type="module" src="kiosk.js?v=V1.10"></script>
+  <script type="module" src="kiosk.js?v=V1.11"></script>
 </body>
 </html>

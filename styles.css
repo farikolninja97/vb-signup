@@ -420,3 +420,25 @@ html:not(.rules-accepted),html:not(.rules-accepted) body {overflow:hidden;}
  .signup-modal-backdrop{padding:10px;align-items:center;}
  .signup-modal{max-height:calc(100dvh - 20px);}
 }
+
+/* V1.11: join-team shortcuts and multi-player signup. */
+.team-row .join-team-button{margin:10px 0 3px;max-width:100%;min-height:40px;white-space:normal;text-align:center;border-color:var(--accent);color:var(--text);font-weight:750}
+.team-row .join-team-button:hover{background:var(--accent);color:var(--accent-ink,#102023)}
+.team-full-badge{display:inline-block;margin-top:7px;padding:4px 9px;border:1px solid var(--border);border-radius:9px;font-size:.78rem;color:var(--muted)}
+.signup-modal .add-player-toggle{grid-column:1/-1;justify-self:start;margin-top:3px;min-height:40px}
+.signup-modal .batch-player-fields{grid-column:1/-1;min-width:0;}
+.signup-modal .batch-player-fields.hidden{display:none!important}
+.signup-modal textarea{width:100%;display:block;min-height:105px;resize:vertical;margin-top:6px;padding:11px;border:1px solid var(--border);border-radius:10px;background:var(--input);color:var(--text);font:inherit;line-height:1.4}
+.signup-modal .batch-player-fields .hint{font-size:.8rem;line-height:1.5}
+.admin .pin-admin-settings input{width:min(180px,100%);letter-spacing:.2em;font-variant-numeric:tabular-nums}
+.queue-pin-backdrop{position:fixed;inset:0;z-index:5100;display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(2,9,18,.85);backdrop-filter:blur(5px)}
+.queue-pin-backdrop.hidden{display:none!important}
+.queue-pin-dialog{width:min(100%,430px);max-height:90dvh;overflow:auto;padding:24px;border-radius:18px;border:1px solid var(--border);border-top:4px solid var(--accent);background:var(--panel);color:var(--text);box-shadow:0 25px 80px #0009}
+.queue-pin-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.queue-pin-heading h2{margin:0;font-size:1.3rem}
+.queue-pin-dialog p{line-height:1.45;color:var(--muted)}
+.queue-pin-dialog form{display:grid;gap:12px}
+.queue-pin-dialog form label{display:grid;gap:6px;font-size:.94rem;font-weight:650}
+.queue-pin-dialog input{width:100%;border:1px solid var(--border);border-radius:10px;background:var(--input);color:var(--text);padding:12px;font:inherit;font-size:1.2rem;letter-spacing:.24em}
+.queue-pin-dialog button[type=submit]{min-height:48px}
+@media(max-width:560px){.signup-modal .add-player-toggle{width:100%}.queue-pin-dialog{padding:18px}.single-queue .team-row .join-team-button{width:100%}}

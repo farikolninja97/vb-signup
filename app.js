@@ -361,6 +361,7 @@ function teamCard(team,isNext=false,place=1) {
     <div class="queue-team-details">
       <div class="team-name">${safe(team.name)} <span class="team-capacity">${count}/${maxTeamSize} players</span></div>
       ${isNext?'<div class="next-callout">FIRST IN LINE · NEXT AVAILABLE COURT</div>':''}
+      ${count<maxTeamSize ? `<button type="button" class="secondary small join-team-button" data-join-team="${safe(team.id)}" aria-label="Join ${safe(team.name)} with ${maxTeamSize-count} open spots">＋ Join Team · ${maxTeamSize-count} ${maxTeamSize-count===1?'spot':'spots'} open</button>` : `<span class="team-full-badge">Team full</span>`}
       <div class="queue-roster">${count ? [
         ...items.map(player=>`<span class="roster-chip">${playerHtml(player)}</span>`),
         ...standIns.map(sub=>`<span class="roster-chip">${playerHtml(sub)} <span class="sub-tag">SUB</span></span>`)
@@ -405,9 +406,9 @@ function renderPublic() {
     <div class="hint">Next available court: ${courtNames || 'No courts configured'}</div>
     <div class="public-court-actions top-queue-actions" role="group" aria-label="Queue controls">
       ${button('↶ Previous Team','undo','queue','secondary',publicRotating)}
-      ${button(admin ? '▶ Next Team' : '🔒 Next Team · Admin only','advance','queue','primary',publicRotating || !admin || !waiting.length || !courts.length)}
+      ${button('▶ Next Team','advance','queue','primary',publicRotating || !waiting.length || !courts.length)}
     </div>
-    ${!admin ? '<p class="hint queue-admin-hint">Admin sign-in is required to advance the queue. Previous Team remains available to everyone.</p>' : ''}
+    ${!admin ? '<p class="hint queue-admin-hint">Next and Previous: enter the shared 4-digit court PIN. Admins can use both without a PIN.</p>' : ''}
     <div class="subtitle">UP NEXT</div>
     ${waiting.length ? teamCard(waiting[0],true,1) : '<div class="empty">No teams waiting</div>'}
     ${followingTeams.length ? `<div class="following-heading"><div class="subtitle">Teams following in queue</div><span class="hint">${followingTeams.length} waiting behind first</span></div>
@@ -568,7 +569,7 @@ async function checkAdmin() {
   $('logoutBtn').classList.toggle('hidden',!session);
   $('adminToggle').textContent = admin ? 'Admin controls' : 'Admin login';
   if (admin) renderAdmin();
-  renderPublic(); // Next is enabled only for verified administrators.
+  renderPublic(); // Admins bypass the PIN; everyone else must enter it at each rotation.
 }
 
 // Request a returned row for writes. This catches silent zero-row updates/deletes
@@ -667,11 +668,13 @@ updateNotificationButtons();
 // Signup is in an accessible top-of-page modal, not a permanent page section.
 const signupBackdrop = $('signupModalBackdrop');
 let signupPreviousFocus = null;
-function openSignupModal() {
+function openSignupModal(selectedTeam = '') {
   if (!document.documentElement.classList.contains('rules-accepted')) return;
   signupPreviousFocus = document.activeElement;
   signupBackdrop.classList.remove('hidden');
   document.body.classList.add('signup-modal-open');
+  if (selectedTeam && [...$('teamChoice').options].some(option=>option.value===selectedTeam && !option.disabled)) $('teamChoice').value=selectedTeam;
+  $('signupStatus').textContent='';
   $('playerName').focus({preventScroll:true});
 }
 function closeSignupModal() {
@@ -679,7 +682,21 @@ function closeSignupModal() {
   document.body.classList.remove('signup-modal-open');
   (signupPreviousFocus?.isConnected ? signupPreviousFocus : $('openSignup')).focus({preventScroll:true});
 }
-$('openSignup').addEventListener('click',openSignupModal);
+$('openSignup').addEventListener('click',()=>openSignupModal());
+$('courtGrid').addEventListener('click',event=>{
+  const join=event.target.closest('button[data-join-team]');
+  if (join) openSignupModal(join.dataset.joinTeam);
+});
+$('addMorePlayers').addEventListener('click',()=>{
+  const wrap=$('extraPlayersWrap');
+  const expanding=wrap.classList.contains('hidden');
+  wrap.classList.toggle('hidden',!expanding);
+  $('addMorePlayers').setAttribute('aria-expanded',String(expanding));
+  $('addMorePlayers').textContent=expanding?'－ Register one player only':'＋ Register multiple players';
+  $('signupSubmit').textContent=expanding?'Sign up players':'Sign up player';
+  if (expanding) $('extraPlayerNames').focus({preventScroll:true});
+  else $('extraPlayerNames').value='';
+});
 $('closeSignup').addEventListener('click',closeSignupModal);
 signupBackdrop.addEventListener('click',event=>{
   if (event.target===signupBackdrop) closeSignupModal();
@@ -688,7 +705,7 @@ document.addEventListener('keydown',event=>{
   if (signupBackdrop.classList.contains('hidden')) return;
   if (event.key==='Escape') { event.preventDefault(); closeSignupModal(); return; }
   if (event.key!=='Tab') return;
-  const focusable=[...signupBackdrop.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled])')];
+  const focusable=[...signupBackdrop.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled])')];
   const first=focusable[0],last=focusable.at(-1);
   if (!first) return;
   if (event.shiftKey && document.activeElement===first) {event.preventDefault();last.focus();}
@@ -698,38 +715,59 @@ document.addEventListener('keydown',event=>{
 $('signupForm').addEventListener('submit',async event => {
   event.preventDefault();
   if (!db) return;
-  const submit = $('signupForm').querySelector('button[type="submit"]');
-  let playerName;
-  try { playerName = validName($('playerName').value); ensureUniquePlayerName(playerName); }
-  catch (error) { message('signupStatus',error.message,true); return; }
+  const submit = $('signupSubmit');
   const selectedTeam = $('teamChoice').value;
-  // Keep the existing required database column compatible without asking players for a position.
-  const playerPosition = 'Flexible / Any';
-  if (!playerName || !selectedTeam) {
-    message('signupStatus','Enter your name and choose a team.',true);
-    return;
-  }
-  submit.disabled = true;
+  const extraText = $('extraPlayersWrap').classList.contains('hidden') ? '' : $('extraPlayerNames').value;
+  const entries = [$('playerName').value, ...extraText.split(/\r?\n/)].map(s=>s.trim()).filter(Boolean);
+  let names;
   try {
-    const token = privateToken();
-    const id = await rpc('signup_player_owned',{
-      player_name:playerName, selected_team:selectedTeam, player_position:playerPosition,
-      leave_token:token
-    });
-    if (!id) throw new Error('Signup completed, but did not return a signup ID. Contact an admin for help leaving.');
-    ownedPlayers[id] = token;
-    if (!storeOwned(OWNED_PLAYERS_KEY,ownedPlayers)) {
-      message('signupStatus','Signup saved, but this browser could not store your private leave token. Ask an admin to remove you if you need to leave.',true);
+    if (!selectedTeam) throw new Error('Select a team first.');
+    if (entries.length === 0) throw new Error('Enter at least one player name.');
+    if (entries.length > 50) throw new Error('You can register up to 50 people in one submission.');
+    names = entries.map(name=>validName(name));
+    const unique=new Set(names.map(normalizedPlayerName));
+    if (unique.size !== names.length) throw new Error('The list contains duplicate player names.');
+    names.forEach(name=>ensureUniquePlayerName(name));
+    const selected=teamById(selectedTeam);
+    if (!selected || selected.status !== 'waiting') throw new Error('That team is no longer waiting. Refresh and choose another team.');
+    if (teamCount(selected)+names.length > maxTeamSize) throw new Error(`Only ${Math.max(0,maxTeamSize-teamCount(selected))} places remain on that team. Reduce the number of names.`);
+  } catch(error) { message('signupStatus',error.message,true); return; }
+  submit.disabled = true;
+  const succeeded=[];
+  let failure=null;
+  try {
+    // Each player keeps their own random leave token. Server enforces capacity
+    // and duplicate-name checks as other phones may join at the same time.
+    for (const name of names) {
+      try {
+        const token=privateToken();
+        const id=await rpc('signup_player_owned',{
+          player_name:name, selected_team:selectedTeam, player_position:'Flexible / Any', leave_token:token
+        });
+        if (!id) throw new Error('The signup server did not return a player ID.');
+        ownedPlayers[id]=token;
+        succeeded.push(name);
+        if (!storeOwned(OWNED_PLAYERS_KEY,ownedPlayers))
+          throw new Error(`${name} was added but this browser could not save their Leave Team token. Ask an admin to remove them if needed.`);
+      } catch(error) { failure=error; break; }
     }
-    $('playerName').value = '';
-    setFollow(selectedTeam);
-      try { if (localStorage.getItem(OWNED_PLAYERS_KEY)) message('signupStatus','You are signed up! Use Leave Team below if you need to go. Alerts are following your team.'); } catch (_) {}
-    await load();
-  } catch (error) {
-    message('signupStatus',explain(error),true);
-  } finally {
-    submit.disabled = false;
-  }
+    if (succeeded.length) {
+      setFollow(selectedTeam);
+      const remaining=names.slice(succeeded.length);
+      // On a partial failure keep only names that still need registering,
+      // so retry never creates duplicate signups.
+      $('playerName').value=remaining[0]||'';
+      $('extraPlayerNames').value=remaining.slice(1).join('\n');
+      await load();
+    }
+    if (failure) {
+      message('signupStatus',`${succeeded.length} of ${names.length} signed up. ${explain(failure)}${succeeded.length ? ' Remaining names are still in the form.' : ''}`,true);
+    } else {
+      $('playerName').value='';
+      $('extraPlayerNames').value='';
+      message('signupStatus',`${succeeded.length} ${succeeded.length===1?'player':'players'} registered successfully! They can leave separately under My Signups on this device.`);
+    }
+  } finally { submit.disabled=false; }
 });
 // Subs must already have an active signup owned on this device on a team
 // at least three positions behind first. Server enforces the same restriction.
@@ -825,29 +863,74 @@ $('courtGrid').addEventListener('click', event => {
   replacement?.focus({preventScroll:true});
 });
 
+// Queue controls require a verified admin account OR the 4-digit PIN.
+// The code is never saved in browser storage, HTML or config.js.
+const queuePinBackdrop=$('queuePinBackdrop');
+let pendingQueueAction=null;
+let queuePinReturnFocus=null;
+function closeQueuePin(){
+  queuePinBackdrop.classList.add('hidden');
+  $('queuePinInput').value='';
+  $('queuePinStatus').textContent='';
+  const target=queuePinReturnFocus;
+  pendingQueueAction=null;
+  if (target?.isConnected) target.focus({preventScroll:true});
+}
+function openQueuePin(action,buttonElement){
+  pendingQueueAction=action;
+  queuePinReturnFocus=buttonElement;
+  $('queuePinTitle').textContent=action==='advance'?'PIN required · Next Team':'PIN required · Previous Team';
+  $('queuePinExplanation').textContent='Enter the four-digit PIN set by your organizer. Your PIN is checked securely by Supabase.';
+  $('queuePinStatus').textContent='';
+  $('queuePinInput').value='';
+  queuePinBackdrop.classList.remove('hidden');
+  $('queuePinInput').focus({preventScroll:true});
+}
+$('queuePinClose').addEventListener('click',closeQueuePin);
+queuePinBackdrop.addEventListener('click',e=>{if(e.target===queuePinBackdrop) closeQueuePin();});
+document.addEventListener('keydown',e=>{
+  if (queuePinBackdrop.classList.contains('hidden')) return;
+  if(e.key==='Escape'){e.preventDefault();closeQueuePin();return;}
+  if(e.key==='Tab'){
+    const controls=[...queuePinBackdrop.querySelectorAll('button,input')];
+    if(e.shiftKey && document.activeElement===controls[0]){e.preventDefault();controls.at(-1).focus();}
+    else if(!e.shiftKey && document.activeElement===controls.at(-1)){e.preventDefault();controls[0].focus();}
+  }
+});
+async function rotateQueue(action,pin=null){
+  if (!db || publicRotating) return;
+  publicRotating=true;
+  $('courtGrid').querySelectorAll('button[data-action]').forEach(button=>{button.disabled=true;});
+  message('queueStatus',action==='advance'?'Advancing team…':'Restoring previous team…');
+  try {
+    const result=await rpc('rotate_queue_with_pin',{direction:action==='advance'?'next':'previous',pin:pin});
+    if (!result?.ok) throw new Error(result?.message||'Unable to rotate the queue.');
+    message('queueStatus',action==='advance'?'Team saved in History. Next team is now first in line.':'Previous team and its original players restored.');
+    await load();
+    return true;
+  } catch(error){message('queueStatus',explain(error),true);throw error;}
+  finally {publicRotating=false;renderPublic();}
+}
+$('queuePinForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  if(!pendingQueueAction)return;
+  const pin=$('queuePinInput').value;
+  if(!/^\d{4}$/.test(pin)){message('queuePinStatus','Enter exactly four digits.',true);return;}
+  const submit=$('queuePinForm').querySelector('button[type=submit]');
+  submit.disabled=true;
+  try {await rotateQueue(pendingQueueAction,pin);closeQueuePin();}
+  catch(error){message('queuePinStatus',explain(error),true);$('queuePinInput').select();}
+  finally {submit.disabled=false;}
+});
 // Next atomically archives the outgoing team and its roster; Previous restores the latest archive and roster.
 $('courtGrid').addEventListener('click', async event => {
-  const target = event.target.closest('button[data-action]');
-  if (!target || !db || publicRotating) return;
-  const {action,id} = target.dataset;
-  if (action !== 'advance' && action !== 'undo') return;
-  if (action === 'advance' && !admin) {
-    message('queueStatus','Admin login is required to use Next Team.',true);
-    return;
-  }
-  publicRotating = true;
-  $('courtGrid').querySelectorAll('button[data-action]').forEach(item => {item.disabled=true;});
-  message('queueStatus',action === 'advance' ? 'Advancing teams…' : 'Restoring previous teams…');
-  try {
-    await rpc(action === 'advance' ? 'advance_global_queue' : 'undo_global_queue',{});
-    message('queueStatus',action === 'advance' ? 'Team archived with its player list. Next team is first in line.' : 'Previous team and all its players restored to the front.');
-    await load();
-  } catch (error) {
-    message('queueStatus',explain(error),true);
-  } finally {
-    publicRotating = false;
-    renderPublic();
-  }
+  const target=event.target.closest('button[data-action]');
+  if(!target || !db || publicRotating)return;
+  const {action}=target.dataset;
+  if(action!=='advance' && action!=='undo')return;
+  if(!admin){openQueuePin(action,target);return;}
+  try {await rotateQueue(action,null);}
+  catch(_) { /* rotateQueue displays the error in the public queue status. */ }
 });
 
 function showRosterTab(tab) {
@@ -942,6 +1025,13 @@ $('showPlayerPositions').addEventListener('change', async (event) => {
     void realtimeChannel.send({type:'broadcast',event:'queue_changed',payload:{refresh:true}})
       .catch(() => { /* The server-side trigger and 60-second fallback still apply. */ });
   }
+});
+$('saveQueuePin').addEventListener('click',async()=>{
+  if(!admin||saving)return;
+  const code=$('newQueuePin').value.trim();
+  if(!/^\d{4}$/.test(code)){message('adminStatus','Enter exactly four digits for the new court-control PIN.',true);return;}
+  const saved=await runAdmin(()=>rpc('set_queue_control_pin',{new_pin:code}),'New four-digit court-control PIN saved. Share it only with people allowed to control the queue.');
+  if(saved)$('newQueuePin').value='';
 });
 $('saveMaxTeamSize').addEventListener('click',async() => {
   const number = Number($('maxTeamSize').value);

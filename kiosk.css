@@ -106,3 +106,7 @@ body.kiosk-page { margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-
 .kiosk-login-dialog input{width:100%;border:1px solid var(--border);border-radius:10px;background:var(--bg);padding:12px;color:var(--text);font:inherit;}
 .kiosk-login-submit{border:0;border-radius:10px;background:var(--accent);color:var(--accent-ink,#09251f);font-weight:800;padding:13px;font:inherit;}
 .kiosk-login-error{min-height:20px;color:var(--danger)!important;}
+
+/* V1.11: share the existing tablet-size login styling with the PIN modal. */
+#kioskPinOverlay .kiosk-login-dialog{max-width:400px}
+#kioskPinInput{letter-spacing:.23em;font-size:1.35rem}

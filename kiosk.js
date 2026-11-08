@@ -44,8 +44,8 @@ function connection(value) {
 }
 function showActions() {
   $('kioskPrevious').disabled = busy || !db || !hasHistory;
-  $('kioskNext').disabled = busy || !db || !kioskAdmin || waiting.length === 0;
-  $('kioskNext').innerHTML = kioskAdmin ? 'Next Team <span class="kiosk-action-icon" aria-hidden="true">▶</span>' : '🔒 Next Team · Admin only';
+  $('kioskNext').disabled = busy || !db || waiting.length === 0;
+  $('kioskNext').innerHTML = 'Next Team <span class="kiosk-action-icon" aria-hidden="true">▶</span>';
 }
 function renderFollowingTeams() {
   const upcoming = waiting.slice(1, 3);
@@ -142,28 +142,58 @@ async function load() {
     if (needsAnotherLoad) { needsAnotherLoad = false; scheduleLoad(0); }
   }
 }
-async function rotate(which) {
-  if (!db || busy) return;
-  if (which === 'advance' && !kioskAdmin) {
-    status('Only an approved admin can use Next Team. Use Admin sign in above.',true);
-    return;
-  }
-  if (which === 'advance' && waiting.length === 0) return;
-  if (which === 'undo' && !hasHistory) return;
-  busy = true;
+// PIN is checked by a database function on each press; never stored locally.
+const kioskPinOverlay=$('kioskPinOverlay');
+let kioskPendingAction=null;
+function openKioskPin(which){
+  kioskPendingAction=which;
+  $('kioskPinTitle').textContent=which==='advance'?'PIN required · Next Team':'PIN required · Previous Team';
+  $('kioskPinStatus').textContent='';
+  $('kioskPinInput').value='';
+  kioskPinOverlay.hidden=false;
+  $('kioskPinInput').focus({preventScroll:true});
+}
+function closeKioskPin(){
+  kioskPinOverlay.hidden=true;
+  $('kioskPinInput').value='';
+  $('kioskPinStatus').textContent='';
+  kioskPendingAction=null;
+}
+$('kioskPinClose').addEventListener('click',closeKioskPin);
+kioskPinOverlay.addEventListener('click',event=>{if(event.target===kioskPinOverlay)closeKioskPin();});
+$('kioskPinForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  const code=$('kioskPinInput').value;
+  if(!/^\d{4}$/.test(code)){$('kioskPinStatus').textContent='Enter exactly four digits.';return;}
+  const action=kioskPendingAction;
+  const submit=$('kioskPinForm').querySelector('button[type=submit]');
+  submit.disabled=true;
+  try {await runKioskRotation(action,code);closeKioskPin();}
+  catch(error){$('kioskPinStatus').textContent=error?.message||'PIN or queue operation failed';$('kioskPinInput').select();}
+  finally {submit.disabled=false;}
+});
+async function rotate(which){
+  if(!db||busy)return;
+  if(which==='advance'&&!waiting.length)return;
+  if(which==='undo'&&!hasHistory)return;
+  if(!kioskAdmin){openKioskPin(which);return;}
+  try {await runKioskRotation(which,null);} catch(_){}
+}
+async function runKioskRotation(which,code){
+  if(!db||busy)return;
+  busy=true;
   showActions();
-  status(which === 'advance' ? 'Moving to the next team…' : 'Restoring previous team…');
+  status(which==='advance'?'Moving to the next team…':'Restoring previous team…');
   try {
-    const {error} = await db.rpc(which === 'advance' ? 'advance_global_queue' : 'undo_global_queue',{});
-    if (error) throw error;
+    const {data,error}=await db.rpc('rotate_queue_with_pin',{direction:which==='advance'?'next':'previous',pin:code});
+    if(error)throw error;
+    if(!data?.ok)throw new Error(data?.message||'The court-control PIN was rejected.');
     await load();
-    status(which === 'advance' ? 'Queue advanced.' : 'Previous team restored with its players.');
-  } catch(error) {
-    status(`Could not ${which === 'advance' ? 'advance' : 'undo'}: ${error?.message || 'Unknown error'}`,true);
-  } finally {
-    busy = false;
-    showActions();
-  }
+    status(which==='advance'?'Queue advanced.':'Previous team restored with its players.');
+  }catch(error){
+    status(`Could not ${which==='advance'?'advance':'undo'}: ${error?.message||'Unknown error'}`,true);
+    throw error;
+  }finally {busy=false;showActions();}
 }
 // The kiosk never grants admin access from the UI alone: Supabase checks
 // admin_users, and the Next Team database function validates it again.
@@ -192,7 +222,7 @@ $('kioskAdminToggle').addEventListener('click',async()=>{
     const result = await db.auth.signOut();
     if (result.error) {status(result.error.message,true);return;}
     await checkKioskAdmin();
-    status('Signed out. Only admins can advance the queue.');
+    status('Signed out. Players can use the shared PIN to control the queue.');
     return;
   }
   kioskLoginOverlay.hidden = false;
@@ -218,12 +248,13 @@ $('kioskLoginForm').addEventListener('submit',async event=>{
     $('kioskAdminPassword').value='';
     $('kioskLoginStatus').textContent='';
     closeKioskLogin();
-    status('Admin connected. Next Team is available.');
+    status('Admin connected. Next and Previous are available without a PIN.');
   } catch(error) {
     $('kioskLoginStatus').textContent=error.message||'Unable to sign in';
   } finally { submit.disabled=false; }
 });
 document.addEventListener('keydown',event=>{
+  if (event.key==='Escape' && !kioskPinOverlay.hidden) {closeKioskPin();return;}
   if (event.key==='Escape' && !kioskLoginOverlay.hidden) closeKioskLogin();
 });
 if (db) {
