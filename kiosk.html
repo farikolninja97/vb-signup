@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#101827">
   <meta name="description" content="Fullscreen-ready Intermediate Court Queue kiosk showing the first team, the next two teams and their players, and 4-digit PIN-controlled Next and Previous buttons.">
   <title>Intermediate Court Queue · Kiosk</title>
-  <link rel="stylesheet" href="styles.css?v=V1.12">
-  <link rel="stylesheet" href="kiosk.css?v=V1.12">
+  <link rel="stylesheet" href="styles.css?v=V1.13">
+  <link rel="stylesheet" href="kiosk.css?v=V1.13">
 </head>
 <body class="kiosk-page">
   <div class="kiosk-frame">
@@ -39,6 +39,11 @@
             <div id="kioskRoster" class="kiosk-roster" aria-live="polite" aria-atomic="true">
               <div class="kiosk-empty">Connecting to the live team queue…</div>
             </div>
+            <section class="kiosk-previous-team" aria-label="Team just sent to play" aria-live="polite">
+              <span class="kiosk-previous-label">↳ JUST WENT ON</span>
+              <strong id="kioskPreviousTeamName">No previous team</strong>
+              <div class="kiosk-previous-names" id="kioskPreviousTeamPlayers">No team has been called yet.</div>
+            </section>
           </div>
           <aside class="kiosk-next-panel" aria-label="Next two teams waiting">
             <div class="kiosk-next-heading"><span>COMING UP</span><span class="kiosk-next-count">NEXT 2</span></div>
@@ -67,8 +72,8 @@
         <p class="kiosk-login-error" id="kioskLoginStatus" role="status"></p>
       </section>
     </div>
-    <footer class="kiosk-footer"><span id="kioskUpdated">Waiting for latest queue</span><span id="kioskPositionMode" aria-live="polite">Checking position visibility…</span><span>Current Version: <strong>V1.12</strong></span></footer>
+    <footer class="kiosk-footer"><span id="kioskUpdated">Waiting for latest queue</span><span id="kioskPositionMode" aria-live="polite">Checking position visibility…</span><span>Current Version: <strong>V1.13</strong></span></footer>
   </div>
-  <script type="module" src="kiosk.js?v=V1.12"></script>
+  <script type="module" src="kiosk.js?v=V1.13"></script>
 </body>
 </html>

@@ -110,3 +110,12 @@ body.kiosk-page { margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-
 /* V1.11: share the existing tablet-size login styling with the PIN modal. */
 #kioskPinOverlay .kiosk-login-dialog{max-width:400px}
 #kioskPinInput{letter-spacing:.23em;font-size:1.35rem}
+
+/* V1.13: compact, read-only previous-team roster in the left column. */
+.kiosk-previous-team {flex:none;min-width:0;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:12px;padding:clamp(8px,1vw,13px);margin-top:9px}
+.kiosk-previous-label {font-size:clamp(.67rem,.88vw,.8rem);font-weight:900;letter-spacing:.065em;color:var(--muted)}
+.kiosk-previous-team strong {font-size:clamp(.9rem,1.15vw,1.2rem);color:var(--text)}
+.kiosk-previous-names {width:100%;display:flex;flex-wrap:wrap;gap:3px 9px;color:var(--text);font-size:clamp(.78rem,1vw,.97rem);font-weight:650;line-height:1.2;max-height:3.1em;overflow:auto}
+.kiosk-previous-person {white-space:nowrap;max-width:100%;overflow-wrap:anywhere}
+@media(max-height:650px) and (min-width:651px){.kiosk-previous-team{padding:6px 9px;margin-top:5px;gap:3px 8px}.kiosk-previous-names{font-size:.73rem;max-height:2.4em}}
+@media(max-width:650px){.kiosk-previous-team{margin-top:10px}.kiosk-previous-names{max-height:none}}

@@ -24,6 +24,7 @@ let retryTimer = null;
 let lastReload = 0;
 let waiting = [];
 let hasHistory = false;
+let previousTeam = null;
 let maxSize = 6;
 let themeName = 'default';
 // Fail closed: do not reveal preferred positions until settings explicitly permit them.
@@ -64,7 +65,15 @@ function renderFollowingTeams() {
     </section>`;
   }).join('');
 }
+function renderPreviousTeam() {
+  $('kioskPreviousTeamName').textContent=previousTeam?.team_name || 'No previous team';
+  const people=Array.isArray(previousTeam?.roster) ? previousTeam.roster : [];
+  $('kioskPreviousTeamPlayers').innerHTML = people.length
+    ? people.map(person => `<span class="kiosk-previous-person">${escapeHtml(person.name)}${person.is_sub ? '<small class="kiosk-next-sub">SUB</small>' : ''}</span>`).join('')
+    : (previousTeam ? 'No players were registered.' : 'No team has been called yet.');
+}
 function draw() {
+  renderPreviousTeam();
   $('kioskMembersTitle').textContent = showPlayerPositions ? 'PLAYERS & PREFERRED POSITIONS' : 'PLAYERS';
   const first = waiting[0];
   renderFollowingTeams();
@@ -101,7 +110,7 @@ async function load() {
       db.from('players').select('id,team_id,name,preferred_position,created_at').order('created_at'),
       db.from('team_subs').select('id,team_id,name,preferred_position,created_at').order('created_at'),
       db.from('queue_settings').select('max_team_size,site_theme,show_player_positions').eq('id',true).maybeSingle(),
-      db.from('completed_teams').select('id').order('id',{ascending:false}).limit(1)
+      db.from('completed_teams').select('id,team_name,roster').order('id',{ascending:false}).limit(1)
     ]);
     for (const result of results) if (result.error) throw result.error;
     const [teamRows, playerRows, subRows, settings, history] = results;
@@ -119,7 +128,8 @@ async function load() {
       String(a.created_at || '').localeCompare(String(b.created_at || '')) ||
       String(a.id).localeCompare(String(b.id))
     ).map(team=>({...team,members:members.get(team.id) || []}));
-    hasHistory = (history.data || []).length > 0;
+    previousTeam = (history.data || [])[0] || null;
+    hasHistory = Boolean(previousTeam);
     maxSize = Number(settings.data?.max_team_size) || 6;
     showPlayerPositions = settings.data?.show_player_positions === true;
     document.documentElement.dataset.positions = showPlayerPositions ? 'visible' : 'hidden';
