@@ -25,6 +25,7 @@ let lastReload = 0;
 let waiting = [];
 let hasHistory = false;
 let previousTeam = null;
+let sessionStartedAt = null;
 let maxSize = 6;
 let themeName = 'default';
 // Fail closed: do not reveal preferred positions until settings explicitly permit them.
@@ -109,8 +110,8 @@ async function load() {
       db.from('teams').select('id,name,status,queue_order,created_at').eq('status','waiting').order('queue_order'),
       db.from('players').select('id,team_id,name,preferred_position,created_at').order('created_at'),
       db.from('team_subs').select('id,team_id,name,preferred_position,created_at').order('created_at'),
-      db.from('queue_settings').select('max_team_size,site_theme,show_player_positions').eq('id',true).maybeSingle(),
-      db.from('completed_teams').select('id,team_name,roster').order('id',{ascending:false}).limit(1)
+      db.from('queue_settings').select('max_team_size,site_theme,show_player_positions,registration_closed,session_started_at').eq('id',true).maybeSingle(),
+      db.from('completed_teams').select('id,team_name,roster,completed_at').order('id',{ascending:false}).limit(1)
     ]);
     for (const result of results) if (result.error) throw result.error;
     const [teamRows, playerRows, subRows, settings, history] = results;
@@ -128,7 +129,8 @@ async function load() {
       String(a.created_at || '').localeCompare(String(b.created_at || '')) ||
       String(a.id).localeCompare(String(b.id))
     ).map(team=>({...team,members:members.get(team.id) || []}));
-    previousTeam = (history.data || [])[0] || null;
+    sessionStartedAt = settings.data?.session_started_at || null;
+    previousTeam = (history.data || []).find(item=>sessionStartedAt && new Date(item.completed_at || 0)>=new Date(sessionStartedAt)) || null;
     hasHistory = Boolean(previousTeam);
     maxSize = Number(settings.data?.max_team_size) || 6;
     showPlayerPositions = settings.data?.show_player_positions === true;

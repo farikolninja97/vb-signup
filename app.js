@@ -15,6 +15,24 @@ const configured = SUPABASE_URL.startsWith('https://') &&
 const db = configured ? createClient(SUPABASE_URL,SUPABASE_ANON_KEY) : null;
 
 let courts = [], teams = [], players = [], subs = [], completed = [], maxTeamSize = 6;
+let registrationClosed = false;
+let sessionStartedAt = null;
+let blockedPeople = [];
+const expandedHistoryDays = new Set();
+const DEVICE_ID_KEY = 'vb-device-id-v114';
+function getDeviceId() {
+  try {
+    let value=localStorage.getItem(DEVICE_ID_KEY);
+    if (!value) { value=privateToken();localStorage.setItem(DEVICE_ID_KEY,value); }
+    return value;
+  } catch (_) { throw new Error('Enable browser storage to register players.'); }
+}
+const DAY_FORMAT = new Intl.DateTimeFormat('en-US',{timeZone:'America/Denver',year:'numeric',month:'2-digit',day:'2-digit'});
+const DAY_LABEL = new Intl.DateTimeFormat('en-US',{timeZone:'America/Denver',weekday:'long',month:'long',day:'numeric',year:'numeric'});
+function historyDayKey(date) { const pieces=DAY_FORMAT.formatToParts(new Date(date));const obj=Object.fromEntries(pieces.map(p=>[p.type,p.value]));return `${obj.year}-${obj.month}-${obj.day}`; }
+function currentSessionHistory() {return completed.filter(item=>sessionStartedAt && new Date(item.completed_at)>=new Date(sessionStartedAt));}
+function openingTeamCount(){return currentSessionHistory().length;}
+
 // Shared admin display preference; new signups do not collect preferred positions.
 let showPlayerPositions = true;
 // Signup ownership tokens are random secrets local to this browser. They never
@@ -309,6 +327,7 @@ function message(id, text, error = false) {
 }
 function explain(error) {
   const detail = error?.message || 'Unknown database error';
+  if (error?.code === '42501' && /blocked|closed|organizer|session/i.test(detail)) return detail;
   if (error?.code === '42501' || /permission denied/i.test(detail)) {
     return 'Permission denied. Run fix_existing_database.sql in Supabase SQL Editor, then sign out and back in. Details: ' + detail;
   }
@@ -330,9 +349,10 @@ function teamTitle(team) {
 }
 function subFormHtml(team) {
   const count = teamCount(team);
+  if (registrationClosed) return '<p class="sub-full">Substitute registration is closed for today.</p>';
   if (count >= maxTeamSize) return '<p class="sub-full">This team is full. No subs needed.</p>';
   if (subDraft.teamId !== team.id) subDraft = {open:false,playerId:'',teamId:team.id};
-  const opening = completed.length < 4;
+  const opening = openingTeamCount() < 4;
   const waiting = sortTeams(teams.filter(item => item.status === 'waiting'));
   const eligible = players.filter(player =>
     Boolean(ownedPlayers[player.id]) && (opening ? myTeamRank(player,waiting) > 1 : myTeamRank(player,waiting) > 3) &&
@@ -344,7 +364,7 @@ function subFormHtml(team) {
   if (anyNew) validChoices.push('__new__');
   if (!validChoices.includes(subDraft.playerId)) subDraft.playerId = eligible[0]?.id || (anyNew ? '__new__' : '');
   const explanation = opening
-    ? `Opening four teams: the usual registration and queue-distance sub restrictions are waived (${completed.length}/4 teams have gone on). Your team still needs an open spot.`
+    ? `Opening four teams: the usual registration and queue-distance sub restrictions are waived (${openingTeamCount()}/4 teams have gone on). Your team still needs an open spot.`
     : 'You must already be signed up on a team at least three positions behind first. Use the device where you signed up.';
   return `<div class="sub-volunteer">
     <label class="sub-toggle"><input id="subOptIn" type="checkbox" ${subDraft.open?'checked':''} ${!validChoices.length?'disabled':''} /> <span><strong>I'd like to sub for this team</strong><small>${maxTeamSize-count} open ${maxTeamSize-count===1?'spot':'spots'} available</small></span></label>
@@ -367,7 +387,7 @@ function teamCard(team,isNext=false,place=1) {
     <div class="queue-team-details">
       <div class="team-name">${safe(team.name)} <span class="team-capacity">${count}/${maxTeamSize} players</span></div>
       ${isNext?'<div class="next-callout">FIRST IN LINE · NEXT AVAILABLE COURT</div>':''}
-      ${count<maxTeamSize ? `<button type="button" class="secondary small join-team-button" data-join-team="${safe(team.id)}" aria-label="Join ${safe(team.name)} with ${maxTeamSize-count} open spots">＋ Join Team · ${maxTeamSize-count} ${maxTeamSize-count===1?'spot':'spots'} open</button>` : `<span class="team-full-badge">Team full</span>`}
+      ${count<maxTeamSize && !registrationClosed ? `<button type="button" class="secondary small join-team-button" data-join-team="${safe(team.id)}" aria-label="Join ${safe(team.name)} with ${maxTeamSize-count} open spots">＋ Join Team · ${maxTeamSize-count} ${maxTeamSize-count===1?'spot':'spots'} open</button>` : `<span class="team-full-badge">${registrationClosed?'Registration closed':'Team full'}</span>`}
       <div class="queue-roster">${count ? [
         ...items.map(player=>`<span class="roster-chip">${playerHtml(player)}</span>`),
         ...standIns.map(sub=>`<span class="roster-chip">${playerHtml(sub)} <span class="sub-tag">SUB</span></span>`)
@@ -378,6 +398,9 @@ function teamCard(team,isNext=false,place=1) {
 }
 
 function renderPublic() {
+  const signupEntry = $('openSignup');
+  if (signupEntry) {signupEntry.disabled=registrationClosed;signupEntry.title=registrationClosed?'Registration is closed for today':'';}
+
   // Keep a selected team if it is still eligible while auto-refreshing.
   const chosen = $('teamChoice').value;
   const available = sortTeams(teams.filter(team => team.status === 'waiting'));
@@ -410,6 +433,7 @@ function renderPublic() {
   $('courtGrid').innerHTML = `<article class="court-card single-queue">
     <div class="court-top"><h3>🏐 Live team lineup</h3><span class="tag">${waiting.length} teams in line</span></div>
     <div class="hint">Next available court: ${courtNames || 'No courts configured'}</div>
+    ${registrationClosed ? '<div class="day-closed-banner" role="status">🔒 Registration is closed for today. See you next session!</div>' : ''}
     <div class="public-court-actions top-queue-actions" role="group" aria-label="Queue controls">
       ${button('↶ Previous Team','undo','queue','secondary',publicRotating)}
       ${button('▶ Next Team','advance','queue','primary',publicRotating || !waiting.length || !courts.length)}
@@ -437,7 +461,7 @@ function renderPublic() {
 }
 
 function renderPreviousTeam() {
-  const entry = completed[0];
+  const entry = currentSessionHistory()[0];
   const host = $('recentTeamPanel');
   if (!host) return;
   host.classList.toggle('has-recent-team', Boolean(entry));
@@ -452,16 +476,42 @@ function renderHistory() {
   renderPreviousTeam();
   const host = $('historyList');
   if (!host) return;
-  host.innerHTML = completed.length ? completed.map((item, index) => {
-    const members = Array.isArray(item.roster) ? item.roster : [];
-    const stamp = item.completed_at ? new Date(item.completed_at).toLocaleString() : '';
-    return `<article class="directory-card"><strong>${safe(item.team_name)}</strong>
-      <div class="hint">${safe(stamp)} · ${members.length} players</div>
-      <div class="players">${members.length ? members.map(member=>playerHtml(member)+(member.is_sub?' <span class="sub-tag">SUB</span>':'')).join(' · ') : 'No players were signed up'}</div>
-    </article>`;
-  }).join('') : '<div class="empty">No teams have been sent to play yet.</div>';
-  $('historyCount').textContent = `${completed.length} previous teams`;
+  const limit=Date.now()-30*24*60*60*1000;
+  const entries=completed.filter(h=>new Date(h.completed_at).getTime()>=limit);
+  const byDate=new Map();
+  for (const entry of entries) {
+    const key=historyDayKey(entry.completed_at);
+    if (!byDate.has(key)) byDate.set(key,[]);
+    byDate.get(key).push(entry);
+  }
+  host.innerHTML = byDate.size ? [...byDate].map(([date,items])=>{
+    const isOpen=expandedHistoryDays.has(date);
+    const description=DAY_LABEL.format(new Date(items[0].completed_at));
+    return `<section class="history-day">
+      <button type="button" class="history-day-button" data-history-day="${safe(date)}" aria-expanded="${isOpen}">
+        <span><strong>📅 ${safe(description)}</strong><small>${items.length} ${items.length===1?'team':'teams'} played</small></span>
+        <span aria-hidden="true">${isOpen?'▴':'▾'}</span>
+      </button>
+      ${isOpen ? `<div class="history-day-content">${items.map(item=>{
+        const roster=Array.isArray(item.roster)?item.roster:[];
+        const time=new Date(item.completed_at).toLocaleTimeString('en-US',{timeZone:'America/Denver',hour:'numeric',minute:'2-digit'});
+        return `<article class="directory-card"><strong>${safe(item.team_name)}</strong>
+          <div class="hint">${safe(time)} · ${roster.length} ${roster.length===1?'player':'players'}</div>
+          <div class="players">${roster.length ? roster.map(person=>`${playerHtml(person)}${person.is_sub?' <span class="sub-tag">SUB</span>':''}`).join(' · ') : 'No players registered'}</div>
+        </article>`;
+      }).join('')}</div>` : ''}
+    </section>`;
+  }).join('') : '<div class="empty">No saved games during the past 30 days.</div>';
+  $('historyCount').textContent=`${entries.length} previous ${entries.length===1?'team':'teams'} · ${byDate.size} ${byDate.size===1?'day':'days'}`;
 }
+$('historyList').addEventListener('click',event=>{
+  const b=event.target.closest('button[data-history-day]');
+  if (!b) return;
+  const day=b.dataset.historyDay;
+  if (expandedHistoryDays.has(day)) expandedHistoryDays.delete(day);
+  else expandedHistoryDays.add(day);
+  renderHistory();
+});
 
 function renderMySignups() {
   const host = $('mySignups');
@@ -520,7 +570,7 @@ function renderAdmin() {
       <span class="hint">${showPlayerPositions && player.preferred_position && player.preferred_position !== 'Flexible / Any' ? `· ${safe(player.preferred_position)} · ` : '· '}${safe(teamById(player.team_id)?.name || 'Unknown team')}</span>
       <div class="actions">${button('Rename','renamePlayer',player.id)}
         ${button('Change position','editPosition',player.id)}${button('Move to team','movePlayer',player.id)}
-        ${button('Remove','deletePlayer',player.id,'danger')}</div></div>`
+        ${button('Remove','deletePlayer',player.id,'danger')}${button('Block','blockPlayer',player.id,'danger')}</div></div>`
   ).join('') || '<div class="empty">No players signed up.</div>';
   if (subs.length) {
     $('adminPlayers').innerHTML += `<p class="hint">Temporary substitutes</p>` + [...subs].sort((a,b)=>a.name.localeCompare(b.name)).map(sub => `
@@ -528,6 +578,18 @@ function renderAdmin() {
       <span class="hint">· ${safe(teamById(sub.team_id)?.name || 'Unknown team')}</span>
       <div class="actions">${button('Remove sub','adminRemoveSub',sub.id,'danger')}</div></div>`).join('');
   }
+  $('blockedPeopleList').innerHTML=blockedPeople.length ? blockedPeople.map(person=>
+    `<div class="admin-team"><strong>${safe(person.display_name)}</strong> <span class="hint">${person.device_blocked?'· Name + browser blocked':'· Name blocked'}</span>
+      <div class="actions">${button('Unblock','unblockPerson',person.normalized_name,'secondary')}</div></div>`
+  ).join('') : '<p class="hint">No blocked player names.</p>';
+  $('endDayStatus').textContent=registrationClosed?'🔒 Closed':'🟢 Open';
+  $('endDayBtn').disabled=registrationClosed || saving;
+}
+
+async function loadBlockedPeople(){
+  if(!admin || !db){blockedPeople=[];return;}
+  try {blockedPeople=await rpc('vb_admin_list_blocks',{})||[];}
+  catch(error){blockedPeople=[];message('adminStatus','Could not load the block list: '+explain(error),true);}
 }
 
 async function load(forceAdminRender=false) {
@@ -545,13 +607,15 @@ async function load(forceAdminRender=false) {
       db.from('teams').select('*').order('queue_order'),
       db.from('players').select('*').order('created_at'),
       db.from('team_subs').select('id,team_id,name,preferred_position,source_player_id,created_at').order('created_at'),
-      db.from('queue_settings').select('max_team_size,site_theme,show_player_positions').eq('id',true).single(),
-      db.from('completed_teams').select('id,team_name,roster,completed_at').order('id',{ascending:false}).limit(200)
+      db.from('queue_settings').select('max_team_size,site_theme,show_player_positions,registration_closed,session_started_at').eq('id',true).single(),
+      db.from('completed_teams').select('id,team_name,roster,completed_at').gte('completed_at',new Date(Date.now()-30*86400000).toISOString()).order('completed_at',{ascending:false}).limit(1000)
     ]);
     for (const result of results) if (result.error) throw result.error;
     if (readVersion !== latestRead) return;
     [courts,teams,players,subs] = results.slice(0,4).map(result => result.data);
     maxTeamSize = results[4].data.max_team_size;
+    registrationClosed = results[4].data.registration_closed===true;
+    sessionStartedAt = results[4].data.session_started_at;
     showPlayerPositions = results[4].data.show_player_positions !== false;
     savedSiteTheme = results[4].data.site_theme || 'default';
     if (!themePreviewPending) applyTheme(savedSiteTheme);
@@ -588,7 +652,8 @@ async function checkAdmin() {
   $('logoutBtn').classList.toggle('hidden',!session);
   $('adminToggle').textContent = admin ? '⚙ Admin' : '⚙ Admin';
   $('adminToggle').setAttribute('aria-label', admin ? 'Open Admin Controls' : 'Open Admin Login');
-  if (admin) renderAdmin();
+  if (admin) {await loadBlockedPeople();renderAdmin();}
+  else blockedPeople=[];
   renderPublic(); // Admins bypass the PIN; everyone else must enter it at each rotation.
 }
 
@@ -685,26 +750,49 @@ $('disableNotifications').addEventListener('click', () => {
 });
 updateNotificationButtons();
 
-// V1.13: High-visibility registration feedback, including batch partial failures.
-let signupToastTimeout = null;
+// V1.14: Center-screen animated registration result dialog. No auto-hide:
+// players must see whether the entire group was accepted or rejected.
+const signupResultOverlay = $('signupResultToast');
+let signupResultReturnFocus = null;
 function dismissSignupToast() {
-  if (signupToastTimeout !== null) clearTimeout(signupToastTimeout);
-  signupToastTimeout = null;
-  $('signupResultToast').classList.add('hidden');
+  if (signupResultOverlay.classList.contains('hidden')) return;
+  const wasError = signupResultOverlay.dataset.kind === 'error';
+  signupResultOverlay.classList.add('hidden');
+  if ($('signupModalBackdrop').classList.contains('hidden')) document.body.classList.remove('signup-modal-open');
+  const target = wasError && !$('signupModalBackdrop').classList.contains('hidden')
+    ? $('playerName')
+    : (signupResultReturnFocus?.isConnected && !signupResultReturnFocus.closest('.hidden')
+        ? signupResultReturnFocus : $('openSignup'));
+  signupResultReturnFocus = null;
+  target?.focus?.({preventScroll:true});
 }
 function showSignupToast(kind, title, text) {
-  dismissSignupToast();
-  const toast = $('signupResultToast');
-  toast.dataset.kind = kind;
-  toast.setAttribute('role',kind === 'error' ? 'alert' : 'status');
-  toast.setAttribute('aria-live',kind === 'error' ? 'assertive' : 'polite');
-  $('signupToastIcon').textContent = kind === 'error' ? '✕' : '✓';
+  signupResultReturnFocus = document.activeElement;
+  signupResultOverlay.dataset.kind = kind;
+  const dialog = signupResultOverlay.querySelector('.signup-result-dialog');
+  dialog.setAttribute('role',kind === 'error' ? 'alertdialog' : 'dialog');
+  $('signupToastEyebrow').textContent = kind === 'error' ? 'PLEASE CHECK YOUR SIGNUP' : 'YOU ARE ON THE LIST';
   $('signupToastTitle').textContent = title;
   $('signupToastMessage').textContent = text;
-  toast.classList.remove('hidden');
-  signupToastTimeout = setTimeout(dismissSignupToast, kind === 'error' ? 10000 : 6500);
+  $('signupResultAction').textContent = kind === 'error' ? 'Back to signup' : 'Awesome, thanks!';
+  signupResultOverlay.classList.remove('hidden');
+  document.body.classList.add('signup-modal-open');
+  $('signupResultAction').focus({preventScroll:true});
 }
 $('closeSignupToast').addEventListener('click',dismissSignupToast);
+$('signupResultAction').addEventListener('click',dismissSignupToast);
+signupResultOverlay.addEventListener('click',event=>{
+  if (event.target === signupResultOverlay) dismissSignupToast();
+});
+document.addEventListener('keydown',event=>{
+  if (signupResultOverlay.classList.contains('hidden')) return;
+  if (event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); dismissSignupToast(); return; }
+  if (event.key !== 'Tab') return;
+  const focusable = [$('closeSignupToast'), $('signupResultAction')];
+  const first = focusable[0], last = focusable[1];
+  if (event.shiftKey && document.activeElement === first) {event.preventDefault();last.focus();}
+  else if (!event.shiftKey && document.activeElement === last) {event.preventDefault();first.focus();}
+});
 
 // Signup is in an accessible top-of-page modal, not a permanent page section.
 const signupBackdrop = $('signupModalBackdrop');
@@ -789,7 +877,7 @@ signupBackdrop.addEventListener('click',event=>{
   if (event.target===signupBackdrop) closeSignupModal();
 });
 document.addEventListener('keydown',event=>{
-  if (signupBackdrop.classList.contains('hidden')) return;
+  if (signupBackdrop.classList.contains('hidden') || !signupResultOverlay.classList.contains('hidden')) return;
   if (event.key==='Escape') { event.preventDefault(); closeSignupModal(); return; }
   if (event.key!=='Tab') return;
   const focusable=[...signupBackdrop.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled])')];
@@ -801,7 +889,7 @@ document.addEventListener('keydown',event=>{
 
 $('signupForm').addEventListener('submit',async event => {
   event.preventDefault();
-  dismissSignupToast();
+  if (!signupResultOverlay.classList.contains('hidden')) return;
   if (!db) {
     const text = 'Registration is unavailable because the database is not connected. Please contact an organizer.';
     message('signupStatus',text,true);
@@ -814,6 +902,7 @@ $('signupForm').addEventListener('submit',async event => {
   const entries = [$('playerName').value, ...extraText.split(/\r?\n/)].map(s=>s.trim()).filter(Boolean);
   let names;
   try {
+    if (registrationClosed) throw new Error('Registrations have ended for today. Please come back next session.');
     if (!selectedTeam) throw new Error('Select a team first.');
     if (entries.length === 0) throw new Error('Enter at least one player name.');
     if (entries.length > 50) throw new Error('You can register up to 50 people in one submission.');
@@ -833,7 +922,8 @@ $('signupForm').addEventListener('submit',async event => {
     if (!storeOwned(OWNED_PLAYERS_KEY,ownedPlayers)) {
       throw new Error('Private signup storage is unavailable on this device. Enable browser storage and retry.');
     }
-    const registrations=names.map(name=>({name,token:privateToken()}));
+    const device_token=getDeviceId();
+    const registrations=names.map(name=>({name,token:privateToken(),device_token}));
     const ids=await rpc('signup_players_batch_owned',{
       selected_team:selectedTeam,registrations
     });
@@ -855,7 +945,7 @@ $('signupForm').addEventListener('submit',async event => {
     // if any signup fails. Keep every name for correction/retry.
     const detail=explain(error);
     message('signupStatus',detail,true);
-    showSignupToast('error','No players were registered',detail + ' The entire group was kept together.');
+    showSignupToast('error','Registration failed',detail + ' No players in your group were registered.');
     try {await load();} catch(_){}
   } finally { submit.disabled=false; }
 });
@@ -880,7 +970,7 @@ $('courtGrid').addEventListener('submit',async event => {
   if (event.target.id !== 'subForm') return;
   event.preventDefault();
   const submit=event.target.querySelector('button[type=submit]');
-  const opening=completed.length<4;
+  const opening=openingTeamCount()<4;
   const joiningNew=opening && subDraft.playerId==='__new__';
   const original=joiningNew ? null : players.find(player=>player.id===subDraft.playerId);
   let subName, token, sourceId=null;
@@ -903,9 +993,10 @@ $('courtGrid').addEventListener('submit',async event => {
   submit.disabled=true;
   try {
     if (!storeOwned(OWNED_SUBS_KEY,ownedSubs)) throw new Error('Enable browser storage to register a removable sub spot.');
-    const id=await rpc('join_first_team_as_sub',{
+    if (registrationClosed) throw new Error('Substitute registration is closed for today.');
+    const id=await rpc('join_first_team_as_sub_v114',{
       sub_name:subName, sub_position:original?.preferred_position||'Flexible / Any',
-      source_player_id:sourceId,leave_token:token
+      source_player_id:sourceId,leave_token:token,device_token:getDeviceId()
     });
     if (!id) throw new Error('The server did not return a substitute signup ID.');
     ownedSubs[id]=token;
@@ -1151,19 +1242,32 @@ $('addCourtBtn').addEventListener('click',async() => {
   if (await runAdmin(() => checkedMutation(db.from('courts')
     .insert({name,sort_order:nextSort})),'Court added')) $('newCourtName').value='';
 });
+$('endDayBtn').addEventListener('click',async()=>{
+  if (!admin || registrationClosed || saving) return;
+  if (!confirm('End today’s drop-in session? Everyone will be blocked from registering players or substitutes. History stays saved for 30 days. A full Reset starts a new session and reopens signups.')) return;
+  await runAdmin(()=>rpc('vb_end_day',{}),'Day ended. Registration and substitutes are now closed; History was preserved.');
+});
+$('blockNameBtn').addEventListener('click',async()=>{
+  if (!admin || saving) return;
+  const name=$('blockNameInput').value.trim();
+  if (!name) {message('adminStatus','Enter a name to block.',true);return;}
+  if (!confirm(`Block the name “${name}” from registering? Already registered players are not automatically removed unless you use Block beside their signup.`)) return;
+  const success=await runAdmin(()=>rpc('vb_admin_block_name',{block_name:name}),'Name blocked from registration.');
+  if(success){$('blockNameInput').value='';await loadBlockedPeople();renderAdmin();}
+});
 $('resetDefaultsBtn').addEventListener('click',async() => {
   if (!admin || saving) return;
   const confirmText = prompt(
-    'REMOVE EVERYONE? This permanently deletes ALL player signups on EVERY team, as well as teams, courts and Undo history.\n' +
+    'START A NEW DAY? This permanently deletes all CURRENT player signups, courts, teams and current-session Undo.\n' +
     'It then creates one Intermediate court and 12 empty teams (maximum 6 players each).\n' +
-    'Your admin login is kept.\n\nType RESET to continue:'
+    'The last 30 days of History and your admin login are KEPT. Registrations reopen.\n\nType RESET to continue:'
   );
   if (confirmText !== 'RESET') {
     if (confirmText !== null) message('adminStatus','Reset cancelled. Type RESET in capital letters to confirm.');
     return;
   }
   const success = await runAdmin(() => rpc('reset_to_intermediate',{}),
-    'Everyone removed. Ready for a new session: Intermediate court, 12 empty teams, 6-player limit.');
+    'New session started. Everyone removed from active teams. History preserved for 30 days. Registration reopened.');
   if (success) { pendingDestinations.clear(); setFollow(''); }
 });
 
@@ -1177,6 +1281,19 @@ $('adminSection').addEventListener('click',async event => {
   const {action,id} = target.dataset;
   const team = teamById(id), player = players.find(item => item.id===id), court = courtById(id);
 
+  if (action==='blockPlayer' && player) {
+    if (!confirm(`Block ${player.name} from signing up and remove their active registration?`)) return;
+    const blockDevice=confirm('Also block the browser used for this signup? This may affect other players who registered using the same shared phone. Cancel = block the name only.');
+    const success=await runAdmin(()=>rpc('vb_admin_block_player',{target_player:id,block_device:blockDevice}),'Player removed and blocked.');
+    if (success){await loadBlockedPeople();renderAdmin();}
+    return;
+  }
+  if (action==='unblockPerson') {
+    if(!confirm(`Unblock “${id}” so this name can register again?`))return;
+    const success=await runAdmin(()=>rpc('vb_admin_unblock_name',{target_name:id}),'Name unblocked.');
+    if(success){await loadBlockedPeople();renderAdmin();}
+    return;
+  }
   if (action==='renameCourt' && court) {
     const name = prompt('New court name',court.name);
     if (name===null) return;
