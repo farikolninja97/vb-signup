@@ -25,6 +25,7 @@ let lastReload = 0;
 let waiting = [];
 let hasHistory = false;
 let previousTeam = null;
+let registrationClosed = false;
 let sessionStartedAt = null;
 let maxSize = 6;
 let themeName = 'default';
@@ -44,10 +45,18 @@ function connection(value) {
   $('kioskConnection').textContent = text[value] || text.fallback;
   $('kioskConnection').dataset.state = value;
 }
+function updateKioskDayControls() {
+  const button=$('kioskResumeDay');
+  button.hidden = !db || !kioskAdmin || !registrationClosed || busy;
+  const label=$('kioskDayStatus');
+  label.textContent=registrationClosed?'🔒 Signups closed':'● Signups open';
+  label.dataset.state=registrationClosed?'closed':'open';
+}
 function showActions() {
   $('kioskPrevious').disabled = busy || !db || !hasHistory;
   $('kioskNext').disabled = busy || !db || waiting.length === 0;
   $('kioskNext').innerHTML = 'Next Team <span class="kiosk-action-icon" aria-hidden="true">▶</span>';
+  updateKioskDayControls();
 }
 function renderFollowingTeams() {
   const upcoming = waiting.slice(1, 3);
@@ -67,7 +76,9 @@ function renderFollowingTeams() {
   }).join('');
 }
 function renderPreviousTeam() {
+  $('kioskPreviousLabel').textContent=previousTeam?'⏵ ON COURT · JUST SENT TO PLAY':'LAST TEAM CALLED';
   $('kioskPreviousTeamName').textContent=previousTeam?.team_name || 'No previous team';
+  document.querySelector('.kiosk-previous-team')?.classList.toggle('is-on-court',Boolean(previousTeam));
   const people=Array.isArray(previousTeam?.roster) ? previousTeam.roster : [];
   $('kioskPreviousTeamPlayers').innerHTML = people.length
     ? people.map(person => `<span class="kiosk-previous-person">${escapeHtml(person.name)}${person.is_sub ? '<small class="kiosk-next-sub">SUB</small>' : ''}</span>`).join('')
@@ -133,6 +144,8 @@ async function load() {
     previousTeam = (history.data || []).find(item=>sessionStartedAt && new Date(item.completed_at || 0)>=new Date(sessionStartedAt)) || null;
     hasHistory = Boolean(previousTeam);
     maxSize = Number(settings.data?.max_team_size) || 6;
+    registrationClosed = settings.data?.registration_closed === true;
+    updateKioskDayControls();
     showPlayerPositions = settings.data?.show_player_positions === true;
     document.documentElement.dataset.positions = showPlayerPositions ? 'visible' : 'hidden';
     $('kioskPositionMode').textContent = showPlayerPositions ? 'Positions shown' : 'Positions hidden';
@@ -222,6 +235,7 @@ async function checkKioskAdmin() {
     }
   }
   $('kioskAdminToggle').textContent = kioskAdmin ? '🔓 Admin · Sign out' : '🔒 Admin sign in';
+  updateKioskDayControls();
   showActions();
 }
 function closeKioskLogin() {
@@ -272,6 +286,20 @@ document.addEventListener('keydown',event=>{
 if (db) {
   db.auth.onAuthStateChange(()=>setTimeout(()=>{void checkKioskAdmin();},0));
 }
+$('kioskResumeDay').addEventListener('click',async()=>{
+  if(!db || !kioskAdmin || !registrationClosed || busy) return;
+  if(!confirm('Reopen player and substitute signup for the SAME day? Existing teams and History will remain unchanged.')) return;
+  busy=true; showActions();
+  status('Reopening registration…');
+  try {
+    const {error}=await db.rpc('vb_resume_day');
+    if(error) throw error;
+    await load();
+    status('Registration reopened. Queue and History preserved.');
+  } catch(error) {
+    status('Could not resume day: '+(error?.message||'Unknown error'),true);
+  } finally {busy=false;showActions();}
+});
 $('kioskNext').addEventListener('click',()=>void rotate('advance'));
 $('kioskPrevious').addEventListener('click',()=>void rotate('undo'));
 

@@ -119,3 +119,17 @@ body.kiosk-page { margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-
 .kiosk-previous-person {white-space:nowrap;max-width:100%;overflow-wrap:anywhere}
 @media(max-height:650px) and (min-width:651px){.kiosk-previous-team{padding:6px 9px;margin-top:5px;gap:3px 8px}.kiosk-previous-names{font-size:.73rem;max-height:2.4em}}
 @media(max-width:650px){.kiosk-previous-team{margin-top:10px}.kiosk-previous-names{max-height:none}}
+
+/* V1.15: make the recently called team obviously NOT part of the waiting line. */
+.kiosk-previous-team.is-on-court {
+  background:color-mix(in srgb,var(--panel2) 62%,#87909b 38%);
+  border:1px solid color-mix(in srgb,var(--border) 53%,#929aa6 47%);
+  border-left:5px solid #9098a5;
+  box-shadow:none;
+}
+.kiosk-previous-team.is-on-court .kiosk-previous-label {color:var(--text);}
+.kiosk-previous-team.is-on-court .kiosk-previous-names {color:var(--text);}
+.kiosk-day-status{font-size:clamp(.62rem,.88vw,.81rem);letter-spacing:normal;font-weight:800;white-space:nowrap;border-radius:999px;border:1px solid var(--border);background:var(--panel);padding:6px 9px;color:var(--muted);}
+.kiosk-day-status[data-state=closed]{color:var(--text);background:color-mix(in srgb,var(--panel) 75%,#8b919b 25%);}
+.kiosk-resume-day{border-color:var(--accent);color:var(--accent);}
+@media(max-width:650px){.kiosk-day-status{order:3;flex-basis:max-content;margin-left:auto}.kiosk-topline-tag{margin-left:0}.kiosk-topline{flex-wrap:wrap}}

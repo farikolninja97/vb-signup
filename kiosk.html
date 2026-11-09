@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#101827">
   <meta name="description" content="Fullscreen-ready Intermediate Court Queue kiosk showing the first team, the next two teams and their players, and 4-digit PIN-controlled Next and Previous buttons.">
   <title>Intermediate Court Queue · Kiosk</title>
-  <link rel="stylesheet" href="styles.css?v=V1.14">
-  <link rel="stylesheet" href="kiosk.css?v=V1.13">
+  <link rel="stylesheet" href="styles.css?v=V1.15">
+  <link rel="stylesheet" href="kiosk.css?v=V1.15">
 </head>
 <body class="kiosk-page">
   <div class="kiosk-frame">
@@ -20,14 +20,14 @@
         </div>
       </div>
       <div class="kiosk-utilities">
-        <span class="kiosk-connection" id="kioskConnection" role="status" aria-live="polite">◌ Connecting</span><button id="kioskAdminToggle" class="kiosk-utility-btn" type="button">🔒 Admin sign in</button>
+        <span class="kiosk-connection" id="kioskConnection" role="status" aria-live="polite">◌ Connecting</span><button id="kioskResumeDay" class="kiosk-utility-btn kiosk-resume-day" type="button" hidden>↻ Resume Day</button><button id="kioskAdminToggle" class="kiosk-utility-btn" type="button">🔒 Admin sign in</button>
         <button id="fullscreenBtn" class="kiosk-utility-btn" type="button" hidden>⛶ Fullscreen</button>
         <a class="kiosk-utility-btn" href="https://farikolninja97.github.io/vb-signup/" aria-label="Return to signup homepage">⌂ Home</a>
       </div>
     </header>
 
     <main class="kiosk-main" id="kioskMain">
-      <div class="kiosk-topline"><span class="kiosk-breathing-dot" aria-hidden="true"></span> NEXT AVAILABLE COURT <span class="kiosk-topline-tag">FIRST IN LINE</span></div>
+      <div class="kiosk-topline"><span class="kiosk-breathing-dot" aria-hidden="true"></span> NEXT AVAILABLE COURT <span id="kioskDayStatus" class="kiosk-day-status" aria-live="polite">Checking registration…</span><span class="kiosk-topline-tag">FIRST IN LINE</span></div>
       <section class="kiosk-team" aria-labelledby="kioskTeamName">
         <div class="kiosk-team-heading">
           <h2 id="kioskTeamName">Loading queue…</h2>
@@ -40,7 +40,7 @@
               <div class="kiosk-empty">Connecting to the live team queue…</div>
             </div>
             <section class="kiosk-previous-team" aria-label="Team just sent to play" aria-live="polite">
-              <span class="kiosk-previous-label">↳ JUST WENT ON</span>
+              <span class="kiosk-previous-label" id="kioskPreviousLabel">LAST TEAM CALLED</span>
               <strong id="kioskPreviousTeamName">No previous team</strong>
               <div class="kiosk-previous-names" id="kioskPreviousTeamPlayers">No team has been called yet.</div>
             </section>
@@ -72,8 +72,8 @@
         <p class="kiosk-login-error" id="kioskLoginStatus" role="status"></p>
       </section>
     </div>
-    <footer class="kiosk-footer"><span id="kioskUpdated">Waiting for latest queue</span><span id="kioskPositionMode" aria-live="polite">Checking position visibility…</span><span>Current Version: <strong>V1.14</strong></span></footer>
+    <footer class="kiosk-footer"><span id="kioskUpdated">Waiting for latest queue</span><span id="kioskPositionMode" aria-live="polite">Checking position visibility…</span><span>Current Version: <strong>V1.15</strong></span></footer>
   </div>
-  <script type="module" src="kiosk.js?v=V1.13"></script>
+  <script type="module" src="kiosk.js?v=V1.15"></script>
 </body>
 </html>

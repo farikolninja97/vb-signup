@@ -582,3 +582,20 @@ html:not(.rules-accepted),html:not(.rules-accepted) body {overflow:hidden;}
 #blockedPeopleList .admin-team{margin:6px 0}
 #endDayStatus{font-weight:800;align-self:center}
 @media(max-width:520px){.history-day-button{padding:12px}.history-day-content{padding:8px}}
+
+/* V1.15: the most recently CALLED team is not waiting. Muted neutral card, not a green queue highlight. */
+.recent-team-panel.has-recent-team {
+  background:color-mix(in srgb,var(--panel2) 62%,#868e99 38%);
+  border:1px solid color-mix(in srgb,var(--border) 55%,#9098a2 45%);
+  border-left:5px solid #8d96a3;
+  box-shadow:none;
+}
+.recent-team-panel.has-recent-team .recent-team-eyebrow {
+  display:inline-flex;align-items:center;gap:6px;
+  color:var(--text);font-weight:900;
+}
+.recent-team-panel.has-recent-team .recent-player {
+  background:color-mix(in srgb,var(--panel) 72%,#8d949e 28%);
+  border-color:color-mix(in srgb,var(--border) 60%,#89929f 40%);
+}
+#resumeDayBtn {border-color:var(--accent);font-weight:850;}

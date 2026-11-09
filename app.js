@@ -333,7 +333,7 @@ function explain(error) {
   }
   if (error?.code === '23505' && /players_name_unique_normalized|team_subs_name_normalized_unique|duplicate player name/i.test(detail)) return 'That name is already registered. Please use a different name.';
   if (error?.code === '23505') return 'A record with that name already exists. ' + detail;
-  if (error?.code === 'PGRST202' || /Could not find the function public\.(signup_players_batch_owned|join_first_team_as_sub)/i.test(detail)) return 'V1.13 database update is missing. Run the Supabase TXT migration, then refresh the page. Details: ' + detail;
+  if (error?.code === 'PGRST202' || /Could not find the function public\.(signup_players_batch_owned|join_first_team_as_sub)/i.test(detail)) return 'Required database migration is missing. Run the V1.13 and V1.14 Supabase TXT migrations in order, then refresh. Details: ' + detail;
   if (error?.code === 'PGRST116') return 'The operation did not match a record. Refresh the page and try again.';
   return detail;
 }
@@ -465,6 +465,7 @@ function renderPreviousTeam() {
   const host = $('recentTeamPanel');
   if (!host) return;
   host.classList.toggle('has-recent-team', Boolean(entry));
+  $('recentTeamLabel').textContent = entry ? '⏵ ON COURT · JUST SENT TO PLAY' : 'LAST TEAM CALLED';
   $('recentTeamName').textContent = entry?.team_name || 'No previous team yet';
   let members = Array.isArray(entry?.roster) ? entry.roster : [];
   $('recentTeamPlayers').innerHTML = members.length
@@ -533,8 +534,18 @@ function renderMySignups() {
   }).join('') : '<p class="hint">No active signups from this device yet. After joining a team or volunteering as a sub, a Leave button will appear here.</p>';
 }
 
+function updateDayControls() {
+  const end=$('endDayBtn'), resume=$('resumeDayBtn');
+  if(!end || !resume) return;
+  end.classList.toggle('hidden',registrationClosed);
+  resume.classList.toggle('hidden',!registrationClosed);
+  end.disabled=registrationClosed || saving;
+  resume.disabled=!registrationClosed || saving;
+  $('endDayStatus').textContent=registrationClosed?'🔒 Closed · Resume Day available':'🟢 Open';
+}
 function renderAdmin() {
   if (!admin) return;
+  updateDayControls();
   const editing = document.activeElement;
   // Don't overwrite an unfinished input/select while live updates arrive.
   if (editing && $('adminPanel').contains(editing) &&
@@ -576,14 +587,12 @@ function renderAdmin() {
     $('adminPlayers').innerHTML += `<p class="hint">Temporary substitutes</p>` + [...subs].sort((a,b)=>a.name.localeCompare(b.name)).map(sub => `
       <div class="admin-team"><strong>${safe(sub.name)}</strong> <span class="sub-tag">SUB</span>
       <span class="hint">· ${safe(teamById(sub.team_id)?.name || 'Unknown team')}</span>
-      <div class="actions">${button('Remove sub','adminRemoveSub',sub.id,'danger')}</div></div>`).join('');
+      <div class="actions">${button('Remove sub','adminRemoveSub',sub.id,'danger')}${button('Block','blockSub',sub.id,'danger')}</div></div>`).join('');
   }
   $('blockedPeopleList').innerHTML=blockedPeople.length ? blockedPeople.map(person=>
     `<div class="admin-team"><strong>${safe(person.display_name)}</strong> <span class="hint">${person.device_blocked?'· Name + browser blocked':'· Name blocked'}</span>
       <div class="actions">${button('Unblock','unblockPerson',person.normalized_name,'secondary')}</div></div>`
   ).join('') : '<p class="hint">No blocked player names.</p>';
-  $('endDayStatus').textContent=registrationClosed?'🔒 Closed':'🟢 Open';
-  $('endDayBtn').disabled=registrationClosed || saving;
 }
 
 async function loadBlockedPeople(){
@@ -679,6 +688,7 @@ async function runAdmin(action,success='Saved') {
   } finally {
     saving = false;
     $('adminPanel').classList.remove('is-saving');
+    updateDayControls();
   }
 }
 async function rpc(name,args) {
@@ -1244,8 +1254,13 @@ $('addCourtBtn').addEventListener('click',async() => {
 });
 $('endDayBtn').addEventListener('click',async()=>{
   if (!admin || registrationClosed || saving) return;
-  if (!confirm('End today’s drop-in session? Everyone will be blocked from registering players or substitutes. History stays saved for 30 days. A full Reset starts a new session and reopens signups.')) return;
+  if (!confirm('Close registrations and substitute signups for this session? Current players, teams and History stay untouched. You can use Resume Day to reopen without resetting.')) return;
   await runAdmin(()=>rpc('vb_end_day',{}),'Day ended. Registration and substitutes are now closed; History was preserved.');
+});
+$('resumeDayBtn').addEventListener('click',async()=>{
+  if(!admin || !registrationClosed || saving) return;
+  if(!confirm('Resume this session and reopen player and substitute registration? Current signups, queue order and History will stay exactly as they are.')) return;
+  await runAdmin(()=>rpc('vb_resume_day',{}),'Registration reopened for this session. All players, teams, queue positions and History are unchanged.');
 });
 $('blockNameBtn').addEventListener('click',async()=>{
   if (!admin || saving) return;
@@ -1285,6 +1300,14 @@ $('adminSection').addEventListener('click',async event => {
     if (!confirm(`Block ${player.name} from signing up and remove their active registration?`)) return;
     const blockDevice=confirm('Also block the browser used for this signup? This may affect other players who registered using the same shared phone. Cancel = block the name only.');
     const success=await runAdmin(()=>rpc('vb_admin_block_player',{target_player:id,block_device:blockDevice}),'Player removed and blocked.');
+    if (success){await loadBlockedPeople();renderAdmin();}
+    return;
+  }
+  if (action==='blockSub') {
+    const sub = subs.find(item => item.id === id);
+    if (!sub || !confirm(`Block ${sub.name} and remove their active substitute and team signups?`)) return;
+    const blockDevice=confirm('Also block the browser used for this substitute signup? Cancel = block the name only.');
+    const success=await runAdmin(()=>rpc('vb_admin_block_sub',{target_sub:id,block_device:blockDevice}),'Substitute and matching active signups removed; name blocked.');
     if (success){await loadBlockedPeople();renderAdmin();}
     return;
   }
