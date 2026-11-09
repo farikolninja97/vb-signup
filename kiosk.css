@@ -133,3 +133,17 @@ body.kiosk-page { margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-
 .kiosk-day-status[data-state=closed]{color:var(--text);background:color-mix(in srgb,var(--panel) 75%,#8b919b 25%);}
 .kiosk-resume-day{border-color:var(--accent);color:var(--accent);}
 @media(max-width:650px){.kiosk-day-status{order:3;flex-basis:max-content;margin-left:auto}.kiosk-topline-tag{margin-left:0}.kiosk-topline{flex-wrap:wrap}}
+
+/* V1.16: kiosk upcoming names must be readable at a distance, with scrolling for full rosters. */
+.kiosk-next-players li{font-size:clamp(14px,1.2vw,16px)!important;line-height:1.25;color:var(--text);gap:4px}
+.kiosk-next-players li span{min-width:0;overflow-wrap:anywhere}
+.kiosk-next-players{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 7px}
+.kiosk-next-team{overscroll-behavior:contain;scrollbar-width:thin}
+.kiosk-next-team:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
+.kiosk-previous-time{font-weight:650;color:var(--muted);font-size:clamp(.8rem,1vw,.95rem)}
+.kiosk-queue-announcement{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.kiosk-wifi-dialog .wifi-detail{padding:10px 0}
+.kiosk-wifi-dialog .wifi-password-row input{font-size:1rem}
+.kiosk-wifi-dialog .wifi-password-row button{border-radius:9px;min-height:43px}
+@media(max-height:650px) and (min-width:651px){.kiosk-next-players li{font-size:14px!important}}
+@media(max-width:650px){.kiosk-next-players li{font-size:15px!important}}

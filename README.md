@@ -1,27 +1,28 @@
-# Intermediate Court Queue — V1.15
+# Intermediate Court Queue — V1.16
 
-**Based on V1.14.** Update both the homepage and the fullscreen kiosk.
+This update is based on **V1.15** and implements audit improvements **2, 3, 4, 5** plus a venue Wi-Fi popup. Priority 1 (empty team advances) was intentionally not changed.
+
+## Install
+
+1. Back up your Supabase database.
+2. Open Supabase → SQL Editor → New query. Copy and run the entire text from `supabase/v1.16_supabase_changes.txt`. Check that the final result reports `public_select=true` and `anonymous_write=false`.
+3. Copy only the six files in `github-pages/` to the root of `https://github.com/farikolninja97/vb-signup`.
+4. **Leave your existing `config.js` alone.** The ZIP deliberately omits it.
+5. Refresh both the main page and `/kiosk.html`; both footers should read **V1.16**.
+6. Sign into Admin Controls on the main page and set **Guest Wi-Fi information** (SSID and password). Save and test the Wi-Fi popup on both pages.
 
 ## Changes
-- The recently called team (and its saved player roster) is shown in a **muted grey ON COURT** panel instead of looking like another team waiting in line. This is read-only and does **not** press Previous or change History.
-- Admin Controls now show **Resume Day — Reopen registration** after End Day was clicked. Resume keeps all teams, signups, court ordering, substitute assignments, previous team, and the past 30 days of History. It changes only the `queue_settings.registration_closed` flag.
-- **Kiosk Mode:** the just-called team uses the same grey ON COURT treatment; the kiosk displays whether signups are open or closed; signed-in admins see a small **Resume Day** button at the top when the day is closed. Non-admin kiosk users cannot resume.
-- The original Next / Previous PIN controls, multi-player signup, holiday themes and notifications are unchanged.
 
-## Installation
-1. Back up your Supabase database (recommended).
-2. Open `supabase/v1.15_supabase_changes.txt`. Copy all its text into **Supabase → SQL Editor** and run it. Both final checks should say `true`. **Running this script will NOT reopen the day or delete anyone.**
-3. Upload ONLY the six files inside `github-pages/` to the **root** of `https://github.com/farikolninja97/vb-signup`: `index.html`, `app.js`, `styles.css`, `kiosk.html`, `kiosk.js`, `kiosk.css`.
-4. **Keep `config.js` unchanged.** Do not re-run older schema scripts or Reset to install this update.
-5. Wait for GitHub Pages to deploy, refresh both `https://farikolninja97.github.io/vb-signup/` and `https://farikolninja97.github.io/vb-signup/kiosk.html`, and check the visible footer says **V1.15** on both.
+- Kiosk upcoming two teams: larger minimum 14px player names, 15px on smaller screens; scrollable lists for long rosters.
+- Main and kiosk 'Last Team Called' panels: grey styling retained, show call time (America/Denver), and no longer claim a team is still on court. Next and Previous logic unchanged.
+- More consistent focus trapping, Escape handling, and focus restoration on main dialogs and kiosk PIN/login/Wi-Fi dialogs; kiosk screen readers announce a new first-in-line team instead of rereading the full roster each refresh.
+- Header 5–1/6–2 description shortened; full explanation still available through the mandatory welcome dialog and the Review systems button.
+- Public venue Wi-Fi popup on both pages; password can be copied with one tap (select-to-copy fallback). Admins can change it in Admin Controls.
 
-## Try it
-1. Sign in as admin on homepage, press End Day. Signups become disabled; both pages display the closed state.
-2. Look at **Admin Controls → Resume Day**. Press it, confirm, then check that the day reopens while all players and teams remain.
-3. On the kiosk, sign in with your admin account via the top-right admin control. End the day from the main page; the kiosk should show a small **Resume Day** control in the top bar after its live update. Press to reopen registration. Without an admin login, it must not appear.
-4. Press Next using your PIN or admin account. The team just called, including each player's name, appears in grey as **ON COURT**, both on homepage and kiosk. Previous should restore that same team and remove it from the On Court panel.
+## Security note
 
-## Verification scope
-Frontend syntax and local assertions can be checked without connecting to the private database. The SQL needs to be run in your own Supabase project; verify admin authorization and live multi-device sync after deployment.
+Wi-Fi name/password are readable by **any visitor** who can open your website, by design. Use a **guest Wi-Fi network**, never a staff/private network or any shared password used elsewhere. The password is stored in your Supabase database, not in GitHub. Only accounts in `admin_users` may change it.
 
-**Next version: V1.16.**
+## Checks
+
+JavaScript syntax and static file references are validated locally; simulated UI tests are included in the build verification. Live Supabase and device/browser behaviors still require testing on your actual deployment. No existing players, teams, history, PIN, or other data are deleted by the SQL installer.

@@ -31,6 +31,7 @@ let maxSize = 6;
 let themeName = 'default';
 // Fail closed: do not reveal preferred positions until settings explicitly permit them.
 let showPlayerPositions = false;
+let lastAnnouncedQueueId = null;
 document.documentElement.dataset.positions = 'hidden';
 
 function status(message, isError=false) {
@@ -69,14 +70,15 @@ function renderFollowingTeams() {
     const players = team.members.length
       ? `<ul class="kiosk-next-players">${team.members.map(person => `<li title="${escapeHtml(person.name)}"><span>${escapeHtml(person.name)}</span>${person.isSub ? '<small class="kiosk-next-sub">SUB</small>' : ''}</li>`).join('')}</ul>`
       : '<div class="kiosk-next-empty-roster">No players signed up yet</div>';
-    return `<section class="kiosk-next-team" aria-label="${index === 0 ? 'Second' : 'Third'} team in line">
+    return `<section class="kiosk-next-team" role="region" tabindex="0" aria-label="${escapeHtml(team.name)} player list, scroll to see all names">
       <div class="kiosk-next-team-heading"><strong>${escapeHtml(team.name)}</strong><span>${team.members.length}/${maxSize}</span></div>
       ${players}
     </section>`;
   }).join('');
 }
 function renderPreviousTeam() {
-  $('kioskPreviousLabel').textContent=previousTeam?'⏵ ON COURT · JUST SENT TO PLAY':'LAST TEAM CALLED';
+  $('kioskPreviousLabel').textContent='LAST TEAM CALLED';
+  $('kioskPreviousTime').textContent=previousTeam?.completed_at ? 'Called at '+new Date(previousTeam.completed_at).toLocaleTimeString('en-US',{timeZone:'America/Denver',hour:'numeric',minute:'2-digit'}) : '';
   $('kioskPreviousTeamName').textContent=previousTeam?.team_name || 'No previous team';
   document.querySelector('.kiosk-previous-team')?.classList.toggle('is-on-court',Boolean(previousTeam));
   const people=Array.isArray(previousTeam?.roster) ? previousTeam.roster : [];
@@ -90,6 +92,7 @@ function draw() {
   const first = waiting[0];
   renderFollowingTeams();
   if (!first) {
+    lastAnnouncedQueueId=null;
     $('kioskTeamName').textContent = 'No teams waiting';
     $('kioskPlayerCount').textContent = '0 players';
     $('kioskRoster').innerHTML = '<div class="kiosk-empty">There are no teams in the queue yet.</div>';
@@ -97,6 +100,10 @@ function draw() {
     return;
   }
   $('kioskTeamName').textContent = first.name;
+  if(lastAnnouncedQueueId !== first.id){
+    if(lastAnnouncedQueueId !== null) $('kioskQueueAnnouncement').textContent='Now first in line: '+first.name;
+    lastAnnouncedQueueId=first.id;
+  }
   const count = first.members.length;
   $('kioskPlayerCount').textContent = `${count} / ${maxSize} players`;
   $('kioskRoster').innerHTML = count
@@ -167,10 +174,64 @@ async function load() {
     if (needsAnotherLoad) { needsAnotherLoad = false; scheduleLoad(0); }
   }
 }
+// V1.16: Guest Wi-Fi details use the same public Supabase record as the homepage.
+let kioskWifiReturnFocus=null;
+const kioskWifiOverlay=$('kioskWifiOverlay');
+async function openKioskWifi(){
+  kioskWifiReturnFocus=document.activeElement;
+  kioskWifiOverlay.hidden=false;
+  $('kioskWifiSsid').textContent='Loading…';
+  $('kioskWifiPassword').value='';
+  $('kioskWifiCopy').disabled=true;
+  $('kioskWifiStatus').textContent='';
+  $('kioskWifiClose').focus({preventScroll:true});
+  if(!db){$('kioskWifiStatus').textContent='Database not connected.';return;}
+  const {data,error}=await db.from('vb_wifi_details').select('ssid,password').eq('id',true).maybeSingle();
+  if(kioskWifiOverlay.hidden)return;
+  if(error){$('kioskWifiSsid').textContent='Unavailable';$('kioskWifiStatus').textContent=error.message;return;}
+  $('kioskWifiSsid').textContent=data?.ssid||'Not configured yet';
+  $('kioskWifiPassword').value=data?.password||'';
+  $('kioskWifiCopy').disabled=!data?.password;
+  $('kioskWifiStatus').textContent=!data?.ssid?'Ask an organizer to configure guest Wi-Fi.':data?.password?'Tap Copy password to paste it into Wi-Fi settings.':'No password required.';
+}
+function closeKioskWifi(){
+  kioskWifiOverlay.hidden=true;
+  (kioskWifiReturnFocus?.isConnected?kioskWifiReturnFocus:$('kioskOpenWifi')).focus({preventScroll:true});
+  kioskWifiReturnFocus=null;
+}
+$('kioskOpenWifi').addEventListener('click',()=>void openKioskWifi());
+$('kioskWifiClose').addEventListener('click',closeKioskWifi);
+kioskWifiOverlay.addEventListener('click',event=>{if(event.target===kioskWifiOverlay)closeKioskWifi();});
+$('kioskWifiCopy').addEventListener('click',async()=>{
+  const field=$('kioskWifiPassword');if(!field.value)return;
+  try{await navigator.clipboard.writeText(field.value);$('kioskWifiStatus').textContent='Password copied!';}
+  catch(_){field.focus();field.select();field.setSelectionRange(0,field.value.length);$('kioskWifiStatus').textContent='Password selected. Use Copy from the selection menu.';}
+});
+// Keep keyboard focus inside whichever kiosk popup is visible. Restore focus on close.
+document.addEventListener('keydown',event=>{
+  const overlay=[kioskWifiOverlay,$('kioskPinOverlay'),$('kioskLoginOverlay')].find(el=>!el.hidden);
+  if(!overlay)return;
+  if(event.key==='Escape'){
+    event.preventDefault();event.stopImmediatePropagation();
+    if(overlay===kioskWifiOverlay)closeKioskWifi();
+    else if(overlay.id==='kioskPinOverlay')closeKioskPin();
+    else closeKioskLogin();
+    return;
+  }
+  if(event.key!=='Tab')return;
+  const list=[...overlay.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex="0"]')].filter(el=>el.getClientRects().length);
+  if(!list.length){event.preventDefault();overlay.querySelector('[role="dialog"]')?.focus();return;}
+  const first=list[0],last=list.at(-1);
+  if(event.shiftKey &&(document.activeElement===first||!overlay.contains(document.activeElement))){event.preventDefault();event.stopImmediatePropagation();last.focus();}
+  else if(!event.shiftKey&&(document.activeElement===last||!overlay.contains(document.activeElement))){event.preventDefault();event.stopImmediatePropagation();first.focus();}
+},true);
+
 // PIN is checked by a database function on each press; never stored locally.
 const kioskPinOverlay=$('kioskPinOverlay');
 let kioskPendingAction=null;
+let kioskPinReturnFocus=null;
 function openKioskPin(which){
+  kioskPinReturnFocus = which==='advance' ? $('kioskNext') : $('kioskPrevious');
   kioskPendingAction=which;
   $('kioskPinTitle').textContent=which==='advance'?'PIN required · Next Team':'PIN required · Previous Team';
   $('kioskPinStatus').textContent='';
@@ -183,6 +244,8 @@ function closeKioskPin(){
   $('kioskPinInput').value='';
   $('kioskPinStatus').textContent='';
   kioskPendingAction=null;
+  const target=kioskPinReturnFocus; kioskPinReturnFocus=null;
+  if(target?.isConnected)target.focus({preventScroll:true});
 }
 $('kioskPinClose').addEventListener('click',closeKioskPin);
 kioskPinOverlay.addEventListener('click',event=>{if(event.target===kioskPinOverlay)closeKioskPin();});

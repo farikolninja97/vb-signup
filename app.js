@@ -465,7 +465,8 @@ function renderPreviousTeam() {
   const host = $('recentTeamPanel');
   if (!host) return;
   host.classList.toggle('has-recent-team', Boolean(entry));
-  $('recentTeamLabel').textContent = entry ? '⏵ ON COURT · JUST SENT TO PLAY' : 'LAST TEAM CALLED';
+  $('recentTeamLabel').textContent = 'LAST TEAM CALLED';
+  $('recentTeamCalledTime').textContent = entry?.completed_at ? 'Called at ' + new Date(entry.completed_at).toLocaleTimeString('en-US',{timeZone:'America/Denver',hour:'numeric',minute:'2-digit'}) : '';
   $('recentTeamName').textContent = entry?.team_name || 'No previous team yet';
   let members = Array.isArray(entry?.roster) ? entry.roster : [];
   $('recentTeamPlayers').innerHTML = members.length
@@ -768,7 +769,8 @@ function dismissSignupToast() {
   if (signupResultOverlay.classList.contains('hidden')) return;
   const wasError = signupResultOverlay.dataset.kind === 'error';
   signupResultOverlay.classList.add('hidden');
-  if ($('signupModalBackdrop').classList.contains('hidden')) document.body.classList.remove('signup-modal-open');
+  signupBackdrop.inert=false;
+  if ($('signupModalBackdrop').classList.contains('hidden')) {document.body.classList.remove('signup-modal-open');setPageInert(false);}
   const target = wasError && !$('signupModalBackdrop').classList.contains('hidden')
     ? $('playerName')
     : (signupResultReturnFocus?.isConnected && !signupResultReturnFocus.closest('.hidden')
@@ -786,6 +788,8 @@ function showSignupToast(kind, title, text) {
   $('signupToastMessage').textContent = text;
   $('signupResultAction').textContent = kind === 'error' ? 'Back to signup' : 'Awesome, thanks!';
   signupResultOverlay.classList.remove('hidden');
+  if (!signupBackdrop.classList.contains('hidden')) signupBackdrop.inert=true;
+  setPageInert(true);
   document.body.classList.add('signup-modal-open');
   $('signupResultAction').focus({preventScroll:true});
 }
@@ -811,6 +815,7 @@ function openSignupModal(selectedTeam = '') {
   if (!document.documentElement.classList.contains('rules-accepted')) return;
   signupPreviousFocus = document.activeElement;
   signupBackdrop.classList.remove('hidden');
+  setPageInert(true);
   document.body.classList.add('signup-modal-open');
   if (selectedTeam && [...$('teamChoice').options].some(option=>option.value===selectedTeam && !option.disabled)) $('teamChoice').value=selectedTeam;
   $('signupStatus').textContent='';
@@ -818,10 +823,99 @@ function openSignupModal(selectedTeam = '') {
 }
 function closeSignupModal() {
   signupBackdrop.classList.add('hidden');
-  document.body.classList.remove('signup-modal-open');
+  if (signupResultOverlay.classList.contains('hidden')) {document.body.classList.remove('signup-modal-open');setPageInert(false);}
   (signupPreviousFocus?.isConnected ? signupPreviousFocus : $('openSignup')).focus({preventScroll:true});
 }
 $('openSignup').addEventListener('click',()=>openSignupModal());
+
+// V1.16: venue guest Wi-Fi. The password is intentionally public to site visitors.
+// It is stored in Supabase, not in GitHub or browser storage.
+const wifiBackdrop = $('wifiBackdrop');
+let wifiReturnFocus = null;
+async function fetchWifiDetails(){
+  if (!db) throw new Error('Database is not connected.');
+  const {data,error} = await db.from('vb_wifi_details').select('ssid,password').eq('id',true).maybeSingle();
+  if (error) throw error;
+  return {ssid:String(data?.ssid||''),password:String(data?.password||'')};
+}
+function closeWifiDialog(){
+  wifiBackdrop.classList.add('hidden');
+  document.body.classList.remove('signup-modal-open');
+  setPageInert(false);
+  (wifiReturnFocus?.isConnected ? wifiReturnFocus : $('openWifi')).focus({preventScroll:true});
+  wifiReturnFocus=null;
+}
+async function openWifiDialog(){
+  if (!document.documentElement.classList.contains('rules-accepted')) return;
+  wifiReturnFocus=document.activeElement;
+  wifiBackdrop.classList.remove('hidden');
+  document.body.classList.add('signup-modal-open');
+  setPageInert(true);
+  $('wifiSsid').textContent='Loading…';
+  $('wifiPasswordDisplay').value='';
+  $('copyWifiPassword').disabled=true;
+  $('wifiStatus').textContent='';
+  $('closeWifi').focus({preventScroll:true});
+  try {
+    const wifi=await fetchWifiDetails();
+    if(wifiBackdrop.classList.contains('hidden')) return;
+    $('wifiSsid').textContent=wifi.ssid||'Not configured yet';
+    $('wifiPasswordDisplay').value=wifi.password;
+    $('copyWifiPassword').disabled=!wifi.password;
+    $('wifiStatus').textContent=wifi.ssid ? (wifi.password?'Tap Copy password to paste it into Wi-Fi settings.':'No password required for this network.') : 'Ask an organizer to configure guest Wi-Fi in Admin Controls.';
+  } catch(error){
+    $('wifiSsid').textContent='Unavailable';
+    $('wifiStatus').textContent=explain(error);
+  }
+}
+$('openWifi').addEventListener('click',()=>void openWifiDialog());
+$('closeWifi').addEventListener('click',closeWifiDialog);
+wifiBackdrop.addEventListener('click',e=>{if(e.target===wifiBackdrop)closeWifiDialog();});
+$('copyWifiPassword').addEventListener('click',async()=>{
+  const field=$('wifiPasswordDisplay'), password=field.value;
+  if(!password) return;
+  try { await navigator.clipboard.writeText(password); $('wifiStatus').textContent='Password copied! Paste it into your Wi-Fi settings.'; }
+  catch (_) { field.focus();field.select();field.setSelectionRange(0,password.length);$('wifiStatus').textContent='Select Copy from the highlighted password to copy it manually.'; }
+});
+$('saveWifiDetails').addEventListener('click',async()=>{
+  if(!admin||saving)return;
+  const ssid=$('adminWifiSsid').value.trim(),pass=$('adminWifiPassword').value;
+  if(ssid.length>64||pass.length>128||(!ssid&&pass)) { message('adminWifiStatus','Enter a network name (up to 64 characters) and a password (up to 128 characters), or clear both.',true);return; }
+  const result=await runAdmin(()=>rpc('vb_admin_save_wifi',{p_ssid:ssid,p_password:pass}),'Guest Wi-Fi details saved. Visible to anyone who opens the Wi-Fi popup.');
+  if(result)message('adminWifiStatus','Wi-Fi saved. Use the button at the top to test copying the password.');
+});
+async function loadWifiForAdmin(){
+  if(!admin)return;
+  try {
+    const wifi=await fetchWifiDetails();
+    $('adminWifiSsid').value=wifi.ssid;
+    $('adminWifiPassword').value=wifi.password;
+    message('adminWifiStatus','Wi-Fi details loaded. These credentials are public to visitors.');
+  } catch(error) { message('adminWifiStatus','Could not load Wi-Fi: '+explain(error),true); }
+}
+// One accessible focus boundary for open popups. The welcome gate has its own trap.
+function setPageInert(value){
+  for(const el of [document.querySelector('.topbar'),$('mainContent'),document.querySelector('.site-footer')]) if(el)el.inert=value;
+}
+function activeModal(){
+  if(!signupResultOverlay.classList.contains('hidden'))return {root:signupResultOverlay,close:dismissSignupToast};
+  if(!wifiBackdrop.classList.contains('hidden'))return {root:wifiBackdrop,close:closeWifiDialog};
+  if(!queuePinBackdrop.classList.contains('hidden'))return {root:queuePinBackdrop,close:closeQueuePin};
+  if(activeQuickDialog)return {root:activeQuickDialog,close:closeQuickDialog};
+  if(!signupBackdrop.classList.contains('hidden'))return {root:signupBackdrop,close:closeSignupModal};
+  return null;
+}
+document.addEventListener('keydown',event=>{
+  if(!document.documentElement.classList.contains('rules-accepted'))return;
+  const modal=activeModal();if(!modal)return;
+  if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();modal.close();return;}
+  if(event.key!=='Tab')return;
+  const focusable=[...modal.root.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex="0"]')].filter(node=>!node.closest('.hidden,[hidden]') && node.getClientRects().length);
+  if(!focusable.length){event.preventDefault();modal.root.querySelector('[role="dialog"]')?.focus();return;}
+  const first=focusable[0],last=focusable.at(-1);
+  if(event.shiftKey && (document.activeElement===first || !modal.root.contains(document.activeElement))){event.preventDefault();event.stopImmediatePropagation();last.focus();}
+  else if(!event.shiftKey && (document.activeElement===last || !modal.root.contains(document.activeElement))){event.preventDefault();event.stopImmediatePropagation();first.focus();}
+},true);
 
 // V1.12: My Signups and My Team Alerts are on-demand dialogs.
 // Existing elements and handlers are preserved so live updates continue to populate them.
@@ -1145,8 +1239,10 @@ $('historyTab').addEventListener('click', () => showRosterTab('history'));
 
 $('adminToggle').addEventListener('click',() => {
   $('adminSection').classList.toggle('hidden');
-  if (!$('adminSection').classList.contains('hidden'))
+  if (!$('adminSection').classList.contains('hidden')) {
     $('adminSection').scrollIntoView({behavior:'smooth'});
+    if(admin) void loadWifiForAdmin();
+  }
 });
 $('loginForm').addEventListener('submit',async event => {
   event.preventDefault();
@@ -1161,6 +1257,7 @@ $('loginForm').addEventListener('submit',async event => {
     $('adminPassword').value='';
     message('loginStatus','');
     await load(true);
+    await loadWifiForAdmin();
   }
 });
 $('logoutBtn').addEventListener('click',async() => {

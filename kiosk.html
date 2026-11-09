@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#101827">
   <meta name="description" content="Fullscreen-ready Intermediate Court Queue kiosk showing the first team, the next two teams and their players, and 4-digit PIN-controlled Next and Previous buttons.">
   <title>Intermediate Court Queue · Kiosk</title>
-  <link rel="stylesheet" href="styles.css?v=V1.15">
-  <link rel="stylesheet" href="kiosk.css?v=V1.15">
+  <link rel="stylesheet" href="styles.css?v=V1.16">
+  <link rel="stylesheet" href="kiosk.css?v=V1.16">
 </head>
 <body class="kiosk-page">
   <div class="kiosk-frame">
@@ -19,7 +19,7 @@
           <h1>Kiosk Mode</h1>
         </div>
       </div>
-      <div class="kiosk-utilities">
+      <div class="kiosk-utilities"><button id="kioskOpenWifi" class="kiosk-utility-btn" type="button" aria-haspopup="dialog" aria-controls="kioskWifiOverlay">📶 Wi-Fi</button>
         <span class="kiosk-connection" id="kioskConnection" role="status" aria-live="polite">◌ Connecting</span><button id="kioskResumeDay" class="kiosk-utility-btn kiosk-resume-day" type="button" hidden>↻ Resume Day</button><button id="kioskAdminToggle" class="kiosk-utility-btn" type="button">🔒 Admin sign in</button>
         <button id="fullscreenBtn" class="kiosk-utility-btn" type="button" hidden>⛶ Fullscreen</button>
         <a class="kiosk-utility-btn" href="https://farikolninja97.github.io/vb-signup/" aria-label="Return to signup homepage">⌂ Home</a>
@@ -36,31 +36,31 @@
         <div class="kiosk-team-content">
           <div class="kiosk-current-roster">
             <div class="kiosk-members-title" id="kioskMembersTitle">PLAYERS</div>
-            <div id="kioskRoster" class="kiosk-roster" aria-live="polite" aria-atomic="true">
+            <div id="kioskRoster" class="kiosk-roster">
               <div class="kiosk-empty">Connecting to the live team queue…</div>
             </div>
-            <section class="kiosk-previous-team" aria-label="Team just sent to play" aria-live="polite">
+            <section class="kiosk-previous-team" aria-label="Last team called" >
               <span class="kiosk-previous-label" id="kioskPreviousLabel">LAST TEAM CALLED</span>
-              <strong id="kioskPreviousTeamName">No previous team</strong>
+              <strong id="kioskPreviousTeamName">No previous team</strong><span id="kioskPreviousTime" class="kiosk-previous-time"></span>
               <div class="kiosk-previous-names" id="kioskPreviousTeamPlayers">No team has been called yet.</div>
             </section>
           </div>
           <aside class="kiosk-next-panel" aria-label="Next two teams waiting">
             <div class="kiosk-next-heading"><span>COMING UP</span><span class="kiosk-next-count">NEXT 2</span></div>
-            <div id="kioskFollowingTeams" class="kiosk-next-teams" aria-live="polite" aria-atomic="true">
+            <div id="kioskFollowingTeams" class="kiosk-next-teams">
               <p class="kiosk-next-empty">Loading following teams…</p>
             </div>
           </aside>
         </div>
       </section>
-      <p id="kioskStatus" class="kiosk-status" role="status" aria-live="polite"></p>
+      <p id="kioskStatus" class="kiosk-status" role="status" aria-live="polite"></p><p class="kiosk-queue-announcement" id="kioskQueueAnnouncement" role="status" aria-live="polite" aria-atomic="true"></p>
     </main>
 
     <section class="kiosk-actionbar" aria-label="Queue controls: organizers may use a four-digit PIN">
       <button type="button" id="kioskPrevious" class="kiosk-action kiosk-action-previous" disabled><span class="kiosk-action-icon" aria-hidden="true">↶</span> Previous Team</button>
       <button type="button" id="kioskNext" class="kiosk-action kiosk-action-next" disabled>Next Team <span class="kiosk-action-icon" aria-hidden="true">▶</span></button>
     </section>
-    <div class="kiosk-login-overlay" id="kioskPinOverlay" hidden><section class="kiosk-login-dialog" role="dialog" aria-modal="true" aria-labelledby="kioskPinTitle"><div class="kiosk-login-head"><h2 id="kioskPinTitle">Enter court-control PIN</h2><button id="kioskPinClose" class="kiosk-utility-btn" type="button">✕ Close</button></div><p>Enter the four-digit PIN supplied by an organizer to advance or undo the queue.</p><form id="kioskPinForm"><label>Four-digit PIN<input id="kioskPinInput" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" autocomplete="off" required placeholder="••••"/></label><button class="kiosk-login-submit" type="submit">Confirm</button></form><p class="kiosk-login-error" id="kioskPinStatus" role="status"></p></section></div><div class="kiosk-login-overlay" id="kioskLoginOverlay" hidden>
+    <div class="kiosk-login-overlay" id="kioskWifiOverlay" hidden><section class="kiosk-login-dialog kiosk-wifi-dialog" role="dialog" aria-modal="true" aria-labelledby="kioskWifiTitle" aria-describedby="kioskWifiDescription" tabindex="-1"><div class="kiosk-login-head"><h2 id="kioskWifiTitle">📶 Venue Wi-Fi</h2><button id="kioskWifiClose" class="kiosk-utility-btn" type="button">✕ Close</button></div><p id="kioskWifiDescription">Connect your phone to the network below.</p><div class="wifi-detail"><span>Network name (SSID)</span><strong id="kioskWifiSsid">Loading…</strong></div><div class="wifi-detail"><label for="kioskWifiPassword">Password</label><div class="wifi-password-row"><input id="kioskWifiPassword" type="text" value="" readonly aria-label="Wi-Fi password"><button id="kioskWifiCopy" type="button" class="kiosk-login-submit">Copy password</button></div></div><p id="kioskWifiStatus" role="status" aria-live="polite"></p></section></div><div class="kiosk-login-overlay" id="kioskPinOverlay" hidden><section class="kiosk-login-dialog" role="dialog" aria-modal="true" aria-labelledby="kioskPinTitle"><div class="kiosk-login-head"><h2 id="kioskPinTitle">Enter court-control PIN</h2><button id="kioskPinClose" class="kiosk-utility-btn" type="button">✕ Close</button></div><p>Enter the four-digit PIN supplied by an organizer to advance or undo the queue.</p><form id="kioskPinForm"><label>Four-digit PIN<input id="kioskPinInput" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" autocomplete="off" required placeholder="••••"/></label><button class="kiosk-login-submit" type="submit">Confirm</button></form><p class="kiosk-login-error" id="kioskPinStatus" role="status"></p></section></div><div class="kiosk-login-overlay" id="kioskLoginOverlay" hidden>
       <section class="kiosk-login-dialog" role="dialog" aria-modal="true" aria-labelledby="kioskLoginTitle">
         <div class="kiosk-login-head"><h2 id="kioskLoginTitle">Admin login (PIN bypass)</h2><button id="kioskLoginClose" class="kiosk-utility-btn" type="button">✕ Close</button></div>
         <p>Admins can control the queue without entering the shared four-digit PIN.</p>
@@ -72,8 +72,8 @@
         <p class="kiosk-login-error" id="kioskLoginStatus" role="status"></p>
       </section>
     </div>
-    <footer class="kiosk-footer"><span id="kioskUpdated">Waiting for latest queue</span><span id="kioskPositionMode" aria-live="polite">Checking position visibility…</span><span>Current Version: <strong>V1.15</strong></span></footer>
+    <footer class="kiosk-footer"><span id="kioskUpdated">Waiting for latest queue</span><span id="kioskPositionMode" aria-live="polite">Checking position visibility…</span><span>Current Version: <strong>V1.16</strong></span></footer>
   </div>
-  <script type="module" src="kiosk.js?v=V1.15"></script>
+  <script type="module" src="kiosk.js?v=V1.16"></script>
 </body>
 </html>
