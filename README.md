@@ -1,28 +1,23 @@
-# Intermediate Court Queue — V1.16
+# Intermediate Court Queue — V1.17 iPhone Kiosk Repair
 
-This update is based on **V1.15** and implements audit improvements **2, 3, 4, 5** plus a venue Wi-Fi popup. Priority 1 (empty team advances) was intentionally not changed.
+This patch is based on the accepted V1.16 version. **No Supabase changes are needed.**
 
 ## Install
+1. Open your `farikolninja97/vb-signup` GitHub repository.
+2. Replace the **three** files inside `github-pages/`: `index.html`, `kiosk.html`, and `kiosk.css`.
+3. **Do not replace** `app.js`, `kiosk.js`, `styles.css`, or your configured `config.js`.
+4. After GitHub Pages deploys, reopen `https://farikolninja97.github.io/vb-signup/kiosk.html` on the iPhone; refresh the page (or close/reopen the Home Screen web app).
+5. Confirm the footer says `V1.17` on the main site and kiosk.
 
-1. Back up your Supabase database.
-2. Open Supabase → SQL Editor → New query. Copy and run the entire text from `supabase/v1.16_supabase_changes.txt`. Check that the final result reports `public_select=true` and `anonymous_write=false`.
-3. Copy only the six files in `github-pages/` to the root of `https://github.com/farikolninja97/vb-signup`.
-4. **Leave your existing `config.js` alone.** The ZIP deliberately omits it.
-5. Refresh both the main page and `/kiosk.html`; both footers should read **V1.16**.
-6. Sign into Admin Controls on the main page and set **Guest Wi-Fi information** (SSID and password). Save and test the Wi-Fi popup on both pages.
+## Fixes
+- Next Team and Previous Team stay **visible at the bottom** on iPhone portrait and landscape, even with full rosters or on a short screen.
+- The next-two-team panel automatically grows instead of forcing names into a small, clipped square on iPhone.
+- Safe-area padding accommodates the iPhone home indicator.
+- PIN and admin sign-in inputs use at least 16px text, avoiding Safari's automatic zoom on focus; their dialogs scroll when the keyboard is open.
+- **Tablet/desktop kiosk appearance is intentionally unchanged**. All existing queue, History, PIN, theme, Realtime and Wi-Fi functions remain in their existing JavaScript files.
 
-## Changes
+## Validation / limitations
+Checked with an offline fake Supabase database in Playwright Chromium mobile viewport emulation at portrait and landscape screen sizes, including a full next-two-team roster and the 4-digit PIN prompt. Real iPhone Safari and live Supabase still need testing after installation.
 
-- Kiosk upcoming two teams: larger minimum 14px player names, 15px on smaller screens; scrollable lists for long rosters.
-- Main and kiosk 'Last Team Called' panels: grey styling retained, show call time (America/Denver), and no longer claim a team is still on court. Next and Previous logic unchanged.
-- More consistent focus trapping, Escape handling, and focus restoration on main dialogs and kiosk PIN/login/Wi-Fi dialogs; kiosk screen readers announce a new first-in-line team instead of rereading the full roster each refresh.
-- Header 5–1/6–2 description shortened; full explanation still available through the mandatory welcome dialog and the Review systems button.
-- Public venue Wi-Fi popup on both pages; password can be copied with one tap (select-to-copy fallback). Admins can change it in Admin Controls.
-
-## Security note
-
-Wi-Fi name/password are readable by **any visitor** who can open your website, by design. Use a **guest Wi-Fi network**, never a staff/private network or any shared password used elsewhere. The password is stored in your Supabase database, not in GitHub. Only accounts in `admin_users` may change it.
-
-## Checks
-
-JavaScript syntax and static file references are validated locally; simulated UI tests are included in the build verification. Live Supabase and device/browser behaviors still require testing on your actual deployment. No existing players, teams, history, PIN, or other data are deleted by the SQL installer.
+## Supabase
+**No Supabase SQL/TXT migration needed for V1.17.**
