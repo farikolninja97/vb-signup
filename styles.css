@@ -619,3 +619,21 @@ html:not(.rules-accepted),html:not(.rules-accepted) body {overflow:hidden;}
 .wifi-admin-form{align-items:end}
 .wifi-admin-form label{min-width:220px}
 @media(max-width:460px){.wifi-password-row{flex-wrap:wrap}.wifi-password-row button{width:100%}.wifi-dialog{padding:17px}}
+
+/* V1.18: one-tap per-day attendance beside History */
+.attendance-panel-heading{flex-wrap:wrap}
+.attendance-toolbar{display:flex;align-items:end;gap:12px;margin:6px 0 15px}
+.attendance-toolbar label{margin:0;min-width:min(100%,280px)}
+.attendance-toolbar select{margin-top:6px;min-height:44px}
+.attendance-summary{display:flex;flex-wrap:wrap;gap:9px;margin:8px 0 16px}
+.attendance-summary span{padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--panel2);font-size:.92rem}
+.attendance-summary strong{color:var(--accent);font-size:1.14rem}
+.attendance-people{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,285px),1fr));gap:10px}
+.attendance-person{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:12px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:5px 9px}
+.attendance-person-name{font-weight:800;font-size:1.03rem;overflow-wrap:anywhere}
+.attendance-person-detail{font-size:.82rem;color:var(--muted);overflow-wrap:anywhere;grid-column:1/-1;grid-row:2}
+.attendance-status{font-size:.75rem;font-weight:800;border-radius:100px;padding:4px 8px;white-space:nowrap}
+.attendance-called{color:#b5f6df;background:#174a3e}
+.attendance-waiting{color:#e2ecff;background:#324a67}
+.attendance-note{margin-top:16px}
+@media(max-width:520px){.view-tabs{gap:6px}.view-tabs button{min-width:0;padding:10px 8px;font-size:.84rem}.attendance-people{grid-template-columns:1fr}}

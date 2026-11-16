@@ -19,6 +19,7 @@ let registrationClosed = false;
 let sessionStartedAt = null;
 let blockedPeople = [];
 const expandedHistoryDays = new Set();
+let selectedAttendanceDay = null; // null follows today's date in Colorado
 const DEVICE_ID_KEY = 'vb-device-id-v114';
 function getDeviceId() {
   try {
@@ -447,6 +448,7 @@ function renderPublic() {
   </article>`;
 
   renderHistory();
+  renderAttendance();
   $('playerCount').textContent = `${players.length} players · ${subs.length} subs`;
   renderMySignups();
   $('teamDirectory').innerHTML = sortTeams(teams.filter(team => team.status !== 'done')).map(team => {
@@ -506,6 +508,69 @@ function renderHistory() {
   }).join('') : '<div class="empty">No saved games during the past 30 days.</div>';
   $('historyCount').textContent=`${entries.length} previous ${entries.length===1?'team':'teams'} · ${byDate.size} ${byDate.size===1?'day':'days'}`;
 }
+// Attendance is derived from archived team rosters and current signups.
+// It does not infer physical attendance: archived means "called to court".
+function attendanceForDay(day) {
+  const found = new Map();
+  const normalize = name => String(name ?? '').trim().replace(/\s+/g,' ').toLocaleLowerCase('en-US');
+  const touch = (name,team,isSub,called) => {
+    const cleaned=String(name ?? '').trim().replace(/\s+/g,' ');
+    const key=normalize(cleaned);
+    if(!key) return;
+    if(!found.has(key)) found.set(key,{name:cleaned,calledTeams:new Set(),waitingTeams:new Set(),sub:false});
+    const person=found.get(key);
+    // Prefer the original spelling from the first archived appearance.
+    if(called) person.calledTeams.add(String(team ?? 'Team'));
+    else person.waitingTeams.add(String(team ?? 'Team'));
+    if(isSub) person.sub=true;
+  };
+  const oldest=Date.now()-30*24*60*60*1000;
+  for(const item of completed) {
+    const ts=new Date(item.completed_at).getTime();
+    if(!Number.isFinite(ts)||ts<oldest||historyDayKey(item.completed_at)!==day)continue;
+    for(const member of Array.isArray(item.roster)?item.roster:[])
+      touch(member.name,item.team_name,member.is_sub===true,true);
+  }
+  // Active signups are current-day participation, even if signed up in advance.
+  if(day===historyDayKey(new Date())) {
+    for(const person of players) touch(person.name,teamById(person.team_id)?.name||'Team',false,false);
+    for(const person of subs) touch(person.name,teamById(person.team_id)?.name||'Team',true,false);
+  }
+  return [...found.values()].sort((a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'}));
+}
+function renderAttendance() {
+  const dayPicker=$('attendanceDay'), host=$('attendanceList');
+  if(!dayPicker||!host)return;
+  const today=historyDayKey(new Date());
+  const threshold=Date.now()-30*24*60*60*1000;
+  const days=new Set([today]);
+  for(const entry of completed) {
+    const ts=new Date(entry.completed_at).getTime();
+    if(Number.isFinite(ts)&&ts>=threshold)days.add(historyDayKey(entry.completed_at));
+  }
+  const dayOptions=[...days].sort((a,b)=>b.localeCompare(a));
+  if(!selectedAttendanceDay || !days.has(selectedAttendanceDay))selectedAttendanceDay=today;
+  dayPicker.innerHTML=dayOptions.map(day=>{
+    const label=day===today?'Today — '+DAY_LABEL.format(new Date(day+'T18:00:00Z')):DAY_LABEL.format(new Date(day+'T18:00:00Z'));
+    return `<option value="${safe(day)}">${safe(label)}</option>`;
+  }).join('');
+  dayPicker.value=selectedAttendanceDay;
+  const people=attendanceForDay(selectedAttendanceDay);
+  const called=people.filter(p=>p.calledTeams.size).length;
+  const waiting=people.filter(p=>p.waitingTeams.size && !p.calledTeams.size).length;
+  $('attendanceCount').textContent=`${people.length} unique ${people.length===1?'player':'players'}`;
+  $('attendanceSummary').innerHTML=`<span><strong>${people.length}</strong> unique names</span><span><strong>${called}</strong> called to court</span>${selectedAttendanceDay===today?`<span><strong>${waiting}</strong> waiting only</span>`:''}`;
+  host.innerHTML=people.length ? `<ul class="attendance-people">${people.map(person=>{
+    const calledTeams=[...person.calledTeams];
+    const waitingTeams=[...person.waitingTeams];
+    const details=[calledTeams.length?'Called: '+calledTeams.join(', '):'',waitingTeams.length?'Signed up: '+waitingTeams.join(', '):''].filter(Boolean).join(' · ');
+    return `<li class="attendance-person"><span class="attendance-person-name">${safe(person.name)}${person.sub?' <span class="sub-tag">SUB</span>':''}</span><span class="attendance-person-detail">${safe(details)}</span><span class="attendance-status ${calledTeams.length?'attendance-called':'attendance-waiting'}">${calledTeams.length?'Called to court':'Waiting'}</span></li>`;
+  }).join('')}</ul>` : '<p class="empty">No players recorded for this date.</p>';
+}
+$('attendanceDay').addEventListener('change',event=>{
+  selectedAttendanceDay=event.target.value;
+  renderAttendance();
+});
 $('historyList').addEventListener('click',event=>{
   const b=event.target.closest('button[data-history-day]');
   if (!b) return;
@@ -1226,16 +1291,22 @@ $('courtGrid').addEventListener('click', async event => {
 });
 
 function showRosterTab(tab) {
-  const showHistory = tab === 'history';
-  $('historyPanel').classList.toggle('hidden', !showHistory);
-  $('activeTeamsPanel').classList.toggle('hidden', showHistory);
-  $('queueTab').className = showHistory ? 'secondary' : 'primary';
-  $('historyTab').className = showHistory ? 'primary' : 'secondary';
-  $('queueTab').setAttribute('aria-selected', String(!showHistory));
-  $('historyTab').setAttribute('aria-selected', String(showHistory));
+  const views = [
+    {id:'queue', panel:'activeTeamsPanel',button:'queueTab'},
+    {id:'history',panel:'historyPanel',button:'historyTab'},
+    {id:'attendance',panel:'attendancePanel',button:'attendanceTab'}
+  ];
+  for(const view of views) {
+    const selected=tab===view.id;
+    $(view.panel).classList.toggle('hidden',!selected);
+    $(view.button).className=selected?'primary':'secondary';
+    $(view.button).setAttribute('aria-selected',String(selected));
+  }
+  if(tab==='attendance')renderAttendance();
 }
 $('queueTab').addEventListener('click', () => showRosterTab('queue'));
 $('historyTab').addEventListener('click', () => showRosterTab('history'));
+$('attendanceTab').addEventListener('click', () => showRosterTab('attendance'));
 
 $('adminToggle').addEventListener('click',() => {
   $('adminSection').classList.toggle('hidden');
