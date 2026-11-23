@@ -637,3 +637,20 @@ html:not(.rules-accepted),html:not(.rules-accepted) body {overflow:hidden;}
 .attendance-waiting{color:#e2ecff;background:#324a67}
 .attendance-note{margin-top:16px}
 @media(max-width:520px){.view-tabs{gap:6px}.view-tabs button{min-width:0;padding:10px 8px;font-size:.84rem}.attendance-people{grid-template-columns:1fr}}
+
+/* V1.19: review highlights appear ONLY in the Players Today tab. */
+.attendance-flag-legend{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 6px}
+.attendance-legend-item{display:inline-flex;align-items:center;border-radius:9px;padding:7px 10px;font-size:.83rem;font-weight:800;border:1px solid transparent}
+.attendance-legend-duplicate{background:#fff0a6;color:#5c4500;border-color:#b18e00}
+.attendance-legend-suspect{background:#ffdad8;color:#8b1920;border-color:#d4454e}
+.attendance-review-note{margin:0 0 8px}
+.attendance-flag-count{margin:0 0 10px;font-weight:700}
+.attendance-person.attendance-flag-duplicate{background:#fff0a6;color:#3e2e00;border:2px solid #a77c00}
+.attendance-person.attendance-flag-suspect{background:#ffdad8;color:#68171f;border:2px solid #d4454e}
+.attendance-person.attendance-flag-duplicate .attendance-person-detail{color:#55430e}
+.attendance-person.attendance-flag-suspect .attendance-person-detail{color:#7e252e}
+.attendance-review-reason{display:block;margin-top:8px}
+.attendance-review-badge{display:inline-block;max-width:100%;font-size:.78rem;font-weight:850;padding:5px 8px;border-radius:8px;overflow-wrap:anywhere}
+.attendance-review-duplicate{background:#5e4900;color:#fff6c8}
+.attendance-review-suspect{background:#8e222b;color:#fff1f0}
+@media(prefers-reduced-motion:reduce){.attendance-person{transition:none}}

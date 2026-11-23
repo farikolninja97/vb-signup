@@ -538,6 +538,73 @@ function attendanceForDay(day) {
   }
   return [...found.values()].sort((a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'}));
 }
+// V1.19: conservative name-review cues for the Players Today tab ONLY.
+// These are hints for humans, never a claim of identity or evidence of fraud.
+function attendanceComparisonName(value) {
+  return String(value ?? '')
+    .normalize('NFKD').replace(/[\u0300-\u036f]/g,'')
+    .toLocaleLowerCase('en-US')
+    .replace(/[^\p{L}\p{N}]+/gu,' ')
+    .trim().replace(/\s+/g,' ');
+}
+function isObviousPlaceholderName(value) {
+  const raw=String(value ?? '').trim();
+  const name=attendanceComparisonName(raw);
+  if(!name || !/[\p{L}]/u.test(name)) return true;
+  if(new Set([
+    'test','testing','test name','test player','test user',
+    'fake','fake name','fake player','fakename','not real',
+    'dummy','dummy name','sample','sample player','placeholder',
+    'no name','noname','unknown','anonymous','none','n a',
+    'asdf','asdfgh','asdfghjkl','qwerty','qwertyuiop',
+    'abc','abc123','xyz','xxx','lol','haha','hahaha',
+    'player','player name','your name','first last','name',
+    'john doe','jane doe','delete me','tbd'
+  ]).has(name)) return true;
+  if(/^(?:test|fake|dummy|sample|player|guest|user|name)\s*\d{1,5}$/u.test(name)) return true;
+  const condensed=name.replace(/\s/g,'');
+  if(/^(.)\1{5,}$/u.test(condensed)) return true;
+  if(/^(?:asdf|qwerty|zxcv)[a-z\d]*$/u.test(condensed)) return true;
+  return false;
+}
+// Only consider a single small typo, diacritic/punctuation variants, or a
+// single-name vs full-name/initial variant. Different people may still match.
+function attendanceOneEditApart(a,b) {
+  if(a===b || Math.abs(a.length-b.length)>1) return false;
+  let i=0,j=0,differences=0;
+  while(i<a.length && j<b.length) {
+    if(a[i]===b[j]) {i++;j++;continue;}
+    if(++differences>1)return false;
+    if(a.length>b.length)i++;
+    else if(b.length>a.length)j++;
+    else {i++;j++;}
+  }
+  return differences + (i<a.length || j<b.length ? 1 : 0) <= 1;
+}
+function possibleAttendanceDuplicate(a,b) {
+  const x=attendanceComparisonName(a),y=attendanceComparisonName(b);
+  if(!x || !y) return false;
+  if(x===y) return true;
+  const first=x.split(' '),second=y.split(' ');
+  if(first.length===second.length && x.length>=5 && y.length>=5 && attendanceOneEditApart(x,y))return true;
+  // First name plus surname initial (e.g. "Luis R" / "Luis Rodriguez").
+  if(first.length===2 && second.length===2 && first[0]===second[0] &&
+      ((first[1].length===1 && second[1].startsWith(first[1])) ||
+       (second[1].length===1 && first[1].startsWith(second[1]))))return true;
+  // A bare first name and the same first name with a surname may be the same person.
+  if(first.length===1 && second.length>=2 && first[0].length>=4 && first[0]===second[0])return true;
+  if(second.length===1 && first.length>=2 && second[0].length>=4 && first[0]===second[0])return true;
+  return false;
+}
+function attendanceNameFlags(people) {
+  return people.map((person,index) => {
+    if(isObviousPlaceholderName(person.name))return {type:'suspect',similar:[]};
+    const similar=people.filter((other,j)=>j!==index && !isObviousPlaceholderName(other.name) &&
+      possibleAttendanceDuplicate(person.name,other.name)).map(p=>p.name);
+    return similar.length?{type:'duplicate',similar:similar.slice(0,3)}:null;
+  });
+}
+
 function renderAttendance() {
   const dayPicker=$('attendanceDay'), host=$('attendanceList');
   if(!dayPicker||!host)return;
@@ -556,15 +623,25 @@ function renderAttendance() {
   }).join('');
   dayPicker.value=selectedAttendanceDay;
   const people=attendanceForDay(selectedAttendanceDay);
+  const flags=attendanceNameFlags(people);
+  const duplicates=flags.filter(flag=>flag?.type==='duplicate').length;
+  const suspects=flags.filter(flag=>flag?.type==='suspect').length;
+  const flagCount=$('attendanceFlagCount');
+  if(flagCount) flagCount.textContent=duplicates || suspects ?
+    `${duplicates} possible duplicate${duplicates===1?'':'s'} · ${suspects} questionable name${suspects===1?'':'s'}` :
+    'No names flagged for review';
   const called=people.filter(p=>p.calledTeams.size).length;
   const waiting=people.filter(p=>p.waitingTeams.size && !p.calledTeams.size).length;
   $('attendanceCount').textContent=`${people.length} unique ${people.length===1?'player':'players'}`;
   $('attendanceSummary').innerHTML=`<span><strong>${people.length}</strong> unique names</span><span><strong>${called}</strong> called to court</span>${selectedAttendanceDay===today?`<span><strong>${waiting}</strong> waiting only</span>`:''}`;
-  host.innerHTML=people.length ? `<ul class="attendance-people">${people.map(person=>{
+  host.innerHTML=people.length ? `<ul class="attendance-people">${people.map((person,index)=>{
     const calledTeams=[...person.calledTeams];
     const waitingTeams=[...person.waitingTeams];
     const details=[calledTeams.length?'Called: '+calledTeams.join(', '):'',waitingTeams.length?'Signed up: '+waitingTeams.join(', '):''].filter(Boolean).join(' · ');
-    return `<li class="attendance-person"><span class="attendance-person-name">${safe(person.name)}${person.sub?' <span class="sub-tag">SUB</span>':''}</span><span class="attendance-person-detail">${safe(details)}</span><span class="attendance-status ${calledTeams.length?'attendance-called':'attendance-waiting'}">${calledTeams.length?'Called to court':'Waiting'}</span></li>`;
+    const flag=flags[index];
+    const badge=flag?.type==='suspect' ? '<span class="attendance-review-badge attendance-review-suspect">⚠ Possible fake / test name</span>' :
+      flag?.type==='duplicate' ? `<span class="attendance-review-badge attendance-review-duplicate">⚠ Possible duplicate${flag.similar.length?': '+safe(flag.similar.join(', ')):''}</span>` : '';
+    return `<li class="attendance-person${flag?' attendance-flag-'+flag.type:''}"><span class="attendance-person-name">${safe(person.name)}${person.sub?' <span class="sub-tag">SUB</span>':''}</span><span class="attendance-person-detail">${safe(details)}${badge?`<span class="attendance-review-reason">${badge}</span>`:''}</span><span class="attendance-status ${calledTeams.length?'attendance-called':'attendance-waiting'}">${calledTeams.length?'Called to court':'Waiting'}</span></li>`;
   }).join('')}</ul>` : '<p class="empty">No players recorded for this date.</p>';
 }
 $('attendanceDay').addEventListener('change',event=>{
