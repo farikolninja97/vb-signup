@@ -654,3 +654,19 @@ html:not(.rules-accepted),html:not(.rules-accepted) body {overflow:hidden;}
 .attendance-review-duplicate{background:#5e4900;color:#fff6c8}
 .attendance-review-suspect{background:#8e222b;color:#fff1f0}
 @media(prefers-reduced-motion:reduce){.attendance-person{transition:none}}
+
+/* V1.20: own-device leave controls live on the active team card. */
+.queue-my-team-actions{margin-top:12px;padding:10px 12px;border:1px solid var(--accent);border-radius:10px;background:color-mix(in srgb,var(--accent) 9%,transparent)}
+.queue-my-team-label{display:block;font-size:.76rem;font-weight:800;color:var(--accent);letter-spacing:.03em;margin-bottom:6px}
+.queue-my-team-entry{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 0;flex-wrap:wrap}
+.queue-my-team-entry span{font-size:.9rem;font-weight:650;overflow-wrap:anywhere}
+.queue-leave-button{border:1px solid var(--danger)!important;color:var(--text);min-height:42px;flex-shrink:0}
+.queue-leave-button:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.admin-device-visibility{margin:10px 0 13px}
+.admin-device-code{display:inline-block;vertical-align:middle;margin:2px 0 2px 5px;padding:3px 7px;border-radius:6px;border:1px solid var(--border);color:var(--muted);font-size:.76rem;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}
+.admin-device-block .actions{margin-top:7px}
+@media(max-width:500px){.queue-my-team-entry{align-items:flex-start}.queue-leave-button{width:auto;max-width:100%}}
+
+.attendance-device-toggle{display:flex;gap:8px;align-items:center;padding:9px 10px;margin:8px 0 14px;border:1px solid var(--border);border-radius:9px;background:var(--panel2);font-size:.86rem}
+.attendance-device-toggle input{width:auto;margin:0;accent-color:var(--accent)}
+.attendance-person-name .admin-device-code{margin-left:8px}

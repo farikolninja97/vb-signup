@@ -18,6 +18,11 @@ let courts = [], teams = [], players = [], subs = [], completed = [], maxTeamSiz
 let registrationClosed = false;
 let sessionStartedAt = null;
 let blockedPeople = [];
+// These are pseudonymous browser-registration hash prefixes, NOT hardware IDs.
+// Never fetched or displayed in the public queue. The local toggle starts OFF.
+let adminDeviceCodes = new Map();
+let adminDeviceBlocks = [];
+let showAdminDeviceCodes = false;
 const expandedHistoryDays = new Set();
 let selectedAttendanceDay = null; // null follows today's date in Colorado
 const DEVICE_ID_KEY = 'vb-device-id-v114';
@@ -379,6 +384,19 @@ function subFormHtml(team) {
     </form>` : ''}
   </div>`;
 }
+// A Leave control appears ONLY on the browser holding that signup's private
+// removal token. The backend still validates the token when the button is used.
+function ownedTeamActions(team,members,volunteers) {
+  const owned = [
+    ...members.filter(player=>Object.hasOwn(ownedPlayers,player.id)).map(player=>({id:player.id,name:player.name,kind:'player'})),
+    ...volunteers.filter(sub=>Object.hasOwn(ownedSubs,sub.id)).map(sub=>({id:sub.id,name:sub.name,kind:'sub'}))
+  ];
+  if(!owned.length)return '';
+  return `<div class="queue-my-team-actions" role="group" aria-label="Your signups for ${safe(team.name)}">
+    <span class="queue-my-team-label">Your signup${owned.length===1?'':'s'}</span>
+    ${owned.map(entry=>`<div class="queue-my-team-entry"><span>${safe(entry.name)}${entry.kind==='sub'?' · SUB':''}</span><button type="button" class="secondary small queue-leave-button" data-leave-kind="${entry.kind}" data-leave-id="${safe(entry.id)}" ${selfLeaving?'disabled':''} aria-label="${entry.kind==='sub'?'Leave substitute spot':'Leave team'} for ${safe(entry.name)} on ${safe(team.name)}">${entry.kind==='sub'?'Leave Sub Spot':'Leave Team'}</button></div>`).join('')}
+  </div>`;
+}
 function teamCard(team,isNext=false,place=1) {
   const items = roster(team);
   const standIns = teamSubs(team);
@@ -393,6 +411,7 @@ function teamCard(team,isNext=false,place=1) {
         ...items.map(player=>`<span class="roster-chip">${playerHtml(player)}</span>`),
         ...standIns.map(sub=>`<span class="roster-chip">${playerHtml(sub)} <span class="sub-tag">SUB</span></span>`)
       ].join(''):'<span class="roster-empty">No players signed up yet</span>'}</div>
+      ${ownedTeamActions(team,items,standIns)}
       ${isNext?subFormHtml(team):''}
     </div>
   </div>`;
@@ -623,6 +642,8 @@ function renderAttendance() {
   }).join('');
   dayPicker.value=selectedAttendanceDay;
   const people=attendanceForDay(selectedAttendanceDay);
+  $('attendanceDeviceToggle').classList.toggle('hidden',!admin);
+  $('attendanceShowDeviceCodes').checked = admin && showAdminDeviceCodes;
   const flags=attendanceNameFlags(people);
   const duplicates=flags.filter(flag=>flag?.type==='duplicate').length;
   const suspects=flags.filter(flag=>flag?.type==='suspect').length;
@@ -630,10 +651,23 @@ function renderAttendance() {
   if(flagCount) flagCount.textContent=duplicates || suspects ?
     `${duplicates} possible duplicate${duplicates===1?'':'s'} · ${suspects} questionable name${suspects===1?'':'s'}` :
     'No names flagged for review';
-  const called=people.filter(p=>p.calledTeams.size).length;
-  const waiting=people.filter(p=>p.waitingTeams.size && !p.calledTeams.size).length;
-  $('attendanceCount').textContent=`${people.length} unique ${people.length===1?'player':'players'}`;
-  $('attendanceSummary').innerHTML=`<span><strong>${people.length}</strong> unique names</span><span><strong>${called}</strong> called to court</span>${selectedAttendanceDay===today?`<span><strong>${waiting}</strong> waiting only</span>`:''}`;
+  // Count once for identical normalized names, including accent/punctuation
+  // variants. Keep both spellings visible and yellow-flagged in the review list.
+  // Fuzzy similarities (e.g. Alex vs Alexa) stay separate; they are NOT proof
+  // that two real people are the same person.
+  const uniqueByName = new Map();
+  for (const person of people) {
+    const key = attendanceComparisonName(person.name) || person.name.toLocaleLowerCase('en-US');
+    if (!uniqueByName.has(key)) uniqueByName.set(key,{called:false,waiting:false});
+    const record=uniqueByName.get(key);
+    record.called ||= person.calledTeams.size>0;
+    record.waiting ||= person.waitingTeams.size>0;
+  }
+  const uniqueCount=uniqueByName.size;
+  const called=[...uniqueByName.values()].filter(p=>p.called).length;
+  const waiting=[...uniqueByName.values()].filter(p=>p.waiting && !p.called).length;
+  $('attendanceCount').textContent=`${uniqueCount} unique ${uniqueCount===1?'player':'players'}`;
+  $('attendanceSummary').innerHTML=`<span><strong>${uniqueCount}</strong> unique names</span><span><strong>${called}</strong> called to court</span>${selectedAttendanceDay===today?`<span><strong>${waiting}</strong> waiting only</span>`:''}`;
   host.innerHTML=people.length ? `<ul class="attendance-people">${people.map((person,index)=>{
     const calledTeams=[...person.calledTeams];
     const waitingTeams=[...person.waitingTeams];
@@ -641,7 +675,14 @@ function renderAttendance() {
     const flag=flags[index];
     const badge=flag?.type==='suspect' ? '<span class="attendance-review-badge attendance-review-suspect">⚠ Possible fake / test name</span>' :
       flag?.type==='duplicate' ? `<span class="attendance-review-badge attendance-review-duplicate">⚠ Possible duplicate${flag.similar.length?': '+safe(flag.similar.join(', ')):''}</span>` : '';
-    return `<li class="attendance-person${flag?' attendance-flag-'+flag.type:''}"><span class="attendance-person-name">${safe(person.name)}${person.sub?' <span class="sub-tag">SUB</span>':''}</span><span class="attendance-person-detail">${safe(details)}${badge?`<span class="attendance-review-reason">${badge}</span>`:''}</span><span class="attendance-status ${calledTeams.length?'attendance-called':'attendance-waiting'}">${calledTeams.length?'Called to court':'Waiting'}</span></li>`;
+    // Attendance may include archived players who are no longer registered;
+    // their current browser code is unavailable and is never guessed.
+    const browserCodes=admin && showAdminDeviceCodes ? [
+      ...players.filter(p=>attendanceComparisonName(p.name)===attendanceComparisonName(person.name)).map(p=>adminDeviceCode('player',p.id)),
+      ...subs.filter(p=>attendanceComparisonName(p.name)===attendanceComparisonName(person.name)).map(p=>adminDeviceCode('sub',p.id))
+    ].filter(Boolean) : [];
+    const codes=[...new Set(browserCodes)];
+    return `<li class="attendance-person${flag?' attendance-flag-'+flag.type:''}"><span class="attendance-person-name">${safe(person.name)}${person.sub?' <span class="sub-tag">SUB</span>':''}${codes.map(code=>` <span class="admin-device-code" title="Admin-only code for an active browser signup">Browser: ${safe(code)}</span>`).join('')}</span><span class="attendance-person-detail">${safe(details)}${badge?`<span class="attendance-review-reason">${badge}</span>`:''}</span><span class="attendance-status ${calledTeams.length?'attendance-called':'attendance-waiting'}">${calledTeams.length?'Called to court':'Waiting'}</span></li>`;
   }).join('')}</ul>` : '<p class="empty">No players recorded for this date.</p>';
 }
 $('attendanceDay').addEventListener('change',event=>{
@@ -677,6 +718,44 @@ function renderMySignups() {
   }).join('') : '<p class="hint">No active signups from this device yet. After joining a team or volunteering as a sub, a Leave button will appear here.</p>';
 }
 
+function adminDeviceCode(kind,id) { return adminDeviceCodes.get(`${kind}:${id}`) || null; }
+function adminDeviceCodeMarkup(kind,id) {
+  if(!showAdminDeviceCodes) return '';
+  const code=adminDeviceCode(kind,id);
+  return `<span class="admin-device-code" title="Browser registration code, not a physical phone ID">Browser: ${code?safe(code):'Not available'}</span>`;
+}
+function adminDeviceBanButton(kind,id) {
+  const code=adminDeviceCode(kind,id);
+  return `<button type="button" class="secondary small" data-action="deviceOnlyBan" data-device-kind="${kind}" data-id="${safe(id)}" ${!code?'disabled title="No browser identifier for this signup"':''}>Ban Browser Only</button>`;
+}
+function renderBlockedDevices() {
+  const host=$('blockedDeviceList');
+  if(!host || !admin) return;
+  host.innerHTML=adminDeviceBlocks.length ? adminDeviceBlocks.map(item=>`
+    <div class="admin-team admin-device-block"><strong>Browser ${safe(item.device_code)}</strong>
+      <span class="hint">· Associated with ${safe(item.source_name)}</span>
+      <div class="actions"><button type="button" class="secondary small" data-device-unblock="${safe(item.device_code)}">Unblock Browser</button></div>
+    </div>`).join('') : '<p class="hint">No browser-only bans.</p>';
+}
+async function loadAdminDeviceData() {
+  if(!admin || !db){adminDeviceCodes.clear();adminDeviceBlocks=[];return;}
+  try {
+    const [codes,blocks]=await Promise.all([
+      rpc('vb_admin_device_codes',{}),
+      rpc('vb_admin_list_device_blocks',{})
+    ]);
+    adminDeviceCodes=new Map((codes||[]).map(row=>[`${row.kind}:${row.signup_id}`,row.device_code]));
+    adminDeviceBlocks=blocks||[];
+    renderBlockedDevices();
+    renderAdmin();
+    renderAttendance();
+  } catch(error) {
+    adminDeviceCodes.clear();
+    adminDeviceBlocks=[];
+    renderBlockedDevices();
+    message('adminStatus','Browser management unavailable: '+explain(error)+' Run V1.20 Supabase changes TXT.',true);
+  }
+}
 function updateDayControls() {
   const end=$('endDayBtn'), resume=$('resumeDayBtn');
   if(!end || !resume) return;
@@ -696,6 +775,7 @@ function renderAdmin() {
 
   $('maxTeamSize').value = String(maxTeamSize);
   $('showPlayerPositions').checked = showPlayerPositions;
+  $('adminShowDeviceCodes').checked = showAdminDeviceCodes;
   const choices = '<option value="">Unassigned</option>' + sortCourts(courts)
     .map(court => `<option value="${safe(court.id)}">${safe(court.name)}</option>`).join('');
 
@@ -720,17 +800,18 @@ function renderAdmin() {
 
 
   $('adminPlayers').innerHTML = [...players].sort((a,b) => a.name.localeCompare(b.name)).map(player => `
-    <div class="admin-team"><strong>${safe(player.name)}</strong>
+    <div class="admin-team"><strong>${safe(player.name)}</strong> ${adminDeviceCodeMarkup('player',player.id)}
       <span class="hint">${showPlayerPositions && player.preferred_position && player.preferred_position !== 'Flexible / Any' ? `· ${safe(player.preferred_position)} · ` : '· '}${safe(teamById(player.team_id)?.name || 'Unknown team')}</span>
       <div class="actions">${button('Rename','renamePlayer',player.id)}
         ${button('Change position','editPosition',player.id)}${button('Move to team','movePlayer',player.id)}
-        ${button('Remove','deletePlayer',player.id,'danger')}${button('Block','blockPlayer',player.id,'danger')}</div></div>`
+        ${button('Remove','deletePlayer',player.id,'danger')}${button('Block Name','blockPlayer',player.id,'danger')}
+        ${adminDeviceBanButton('player',player.id)}</div></div>`
   ).join('') || '<div class="empty">No players signed up.</div>';
   if (subs.length) {
     $('adminPlayers').innerHTML += `<p class="hint">Temporary substitutes</p>` + [...subs].sort((a,b)=>a.name.localeCompare(b.name)).map(sub => `
-      <div class="admin-team"><strong>${safe(sub.name)}</strong> <span class="sub-tag">SUB</span>
+      <div class="admin-team"><strong>${safe(sub.name)}</strong> <span class="sub-tag">SUB</span> ${adminDeviceCodeMarkup('sub',sub.id)}
       <span class="hint">· ${safe(teamById(sub.team_id)?.name || 'Unknown team')}</span>
-      <div class="actions">${button('Remove sub','adminRemoveSub',sub.id,'danger')}${button('Block','blockSub',sub.id,'danger')}</div></div>`).join('');
+      <div class="actions">${button('Remove sub','adminRemoveSub',sub.id,'danger')}${button('Block Name','blockSub',sub.id,'danger')}${adminDeviceBanButton('sub',sub.id)}</div></div>`).join('');
   }
   $('blockedPeopleList').innerHTML=blockedPeople.length ? blockedPeople.map(person=>
     `<div class="admin-team"><strong>${safe(person.display_name)}</strong> <span class="hint">${person.device_blocked?'· Name + browser blocked':'· Name blocked'}</span>
@@ -775,6 +856,9 @@ async function load(forceAdminRender=false) {
     renderPublic();
     if (forceAdminRender) document.activeElement?.blur?.();
     renderAdmin();
+    // Device management data is separate and admin-restricted. Refresh after
+    // signup changes without blocking the public queue if an RPC fails.
+    if(admin) void loadAdminDeviceData();
     $('refreshBadge').textContent = 'Updated ' + new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
   } catch (error) {
     $('refreshBadge').textContent = 'Refresh failed: ' + explain(error);
@@ -804,8 +888,13 @@ async function checkAdmin() {
   $('logoutBtn').classList.toggle('hidden',!session);
   $('adminToggle').textContent = admin ? '⚙ Admin' : '⚙ Admin';
   $('adminToggle').setAttribute('aria-label', admin ? 'Open Admin Controls' : 'Open Admin Login');
-  if (admin) {await loadBlockedPeople();renderAdmin();}
-  else blockedPeople=[];
+  if (admin) {await loadBlockedPeople();await loadAdminDeviceData();renderAdmin();}
+  else {
+    blockedPeople=[];adminDeviceCodes.clear();adminDeviceBlocks=[];showAdminDeviceCodes=false;
+    // Drop previous admin-only codes from the DOM after logout as well.
+    $('adminPlayers').replaceChildren();
+    $('blockedDeviceList').replaceChildren();
+  }
   renderPublic(); // Admins bypass the PIN; everyone else must enter it at each rotation.
 }
 
@@ -1254,9 +1343,11 @@ $('courtGrid').addEventListener('submit',async event => {
   finally{submit.disabled=false;}
 });
 
-$('mySignups').addEventListener('click',async event => {
+async function handleOwnLeave(event,source) {
   const btn = event.target.closest('button[data-leave-kind]');
   if (!btn || selfLeaving) return;
+  // The in-queue controls only apply to the team whose roster displayed them.
+  const statusId=source==='queue'?'queueStatus':'leaveStatus';
   const id = btn.dataset.leaveId;
   const isSub = btn.dataset.leaveKind === 'sub';
   const entry = isSub ? subs.find(x=>x.id===id) : players.find(x=>x.id===id);
@@ -1265,6 +1356,7 @@ $('mySignups').addEventListener('click',async event => {
   const action = isSub ? 'withdraw your substitute spot' : 'leave your team';
   if (!confirm(`Remove ${entry.name} and ${action}? This cannot be undone except by signing up again if space is available.`)) return;
   selfLeaving = true;
+  btn.disabled = true;
   renderMySignups();
   try {
     await rpc(isSub?'leave_my_sub':'leave_my_team',
@@ -1278,14 +1370,17 @@ $('mySignups').addEventListener('click',async event => {
       if (followedTeam === entry.team_id) setFollow('');
     }
     await load();
-    message('leaveStatus',`${entry.name} was removed successfully.`);
+    message(statusId,`${entry.name} was removed successfully.`);
   } catch(error) {
-    message('leaveStatus',explain(error),true);
+    message(statusId,explain(error),true);
   } finally {
     selfLeaving = false;
+    if(btn.isConnected) btn.disabled=false;
     renderMySignups();
   }
-});
+}
+$('mySignups').addEventListener('click',event=>{void handleOwnLeave(event,'popup');});
+$('courtGrid').addEventListener('click',event=>{void handleOwnLeave(event,'queue');});
 
 // Expand/collapse is display-only; it never contacts Supabase or advances the queue.
 $('courtGrid').addEventListener('click', event => {
@@ -1507,6 +1602,31 @@ $('resumeDayBtn').addEventListener('click',async()=>{
   if(!confirm('Resume this session and reopen player and substitute registration? Current signups, queue order and History will stay exactly as they are.')) return;
   await runAdmin(()=>rpc('vb_resume_day',{}),'Registration reopened for this session. All players, teams, queue positions and History are unchanged.');
 });
+function setAdminDeviceVisibility(visible) {
+  showAdminDeviceCodes=Boolean(admin && visible);
+  // renderAdmin keeps focused inputs untouched during live refreshes.
+  // Explicitly update both places for a deliberate admin toggle change.
+  $('adminShowDeviceCodes').checked=showAdminDeviceCodes;
+  $('attendanceShowDeviceCodes').checked=showAdminDeviceCodes;
+  renderAdmin();
+  renderAttendance();
+}
+$('adminShowDeviceCodes').addEventListener('change',event=>{
+  const value=event.target.checked;
+  event.target.blur();
+  setAdminDeviceVisibility(value);
+});
+$('attendanceShowDeviceCodes').addEventListener('change',event=>{
+  setAdminDeviceVisibility(event.target.checked);
+});
+$('blockedDeviceList').addEventListener('click',async event=>{
+  const button=event.target.closest('button[data-device-unblock]');
+  if(!button || !admin)return;
+  const code=button.dataset.deviceUnblock;
+  if(!confirm(`Unblock browser ${code}? This allows new signups from the same browser again. Existing name bans, if any, remain unchanged.`))return;
+  const changed=await runAdmin(()=>rpc('vb_admin_unblock_device',{p_code:code}),'Browser unblocked.');
+  if(changed) await loadAdminDeviceData();
+});
 $('blockNameBtn').addEventListener('click',async()=>{
   if (!admin || saving) return;
   const name=$('blockNameInput').value.trim();
@@ -1541,6 +1661,20 @@ $('adminSection').addEventListener('click',async event => {
   const {action,id} = target.dataset;
   const team = teamById(id), player = players.find(item => item.id===id), court = courtById(id);
 
+  if (action==='deviceOnlyBan') {
+    const kind=target.dataset.deviceKind;
+    const known = kind==='sub'?subs.find(item=>item.id===id):player;
+    const code=adminDeviceCode(kind,id);
+    if(!known || !code) {
+      message('adminStatus','No browser code is recorded for this signup. It may predate V1.14.',true);
+      return;
+    }
+    if(!confirm(`Ban browser ${code} only? The name “${known.name}” will NOT be banned. This will remove ALL current team/sub signups made from the same browser, including others registered together. Continue?`))return;
+    const values=kind==='sub' ? {p_sub:id,p_player:null,remove_signups:true} : {p_player:id,p_sub:null,remove_signups:true};
+    const changed=await runAdmin(()=>rpc('vb_admin_block_device_only',values),`Browser ${code} blocked without banning the name.`);
+    if(changed)await loadAdminDeviceData();
+    return;
+  }
   if (action==='blockPlayer' && player) {
     if (!confirm(`Block ${player.name} from signing up and remove their active registration?`)) return;
     const blockDevice=confirm('Also block the browser used for this signup? This may affect other players who registered using the same shared phone. Cancel = block the name only.');
